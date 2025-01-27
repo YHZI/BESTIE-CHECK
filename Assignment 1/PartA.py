@@ -18,4 +18,14 @@ def tokenize(text_file_path):
         print(f"Error reading file {text_file_path}: {e}")
         return []
 
-
+def compute_word_frequencies(tokens):
+    '''
+    Count occurrences of token
+    O(n)
+    :param tokens:
+    :return:
+    '''
+    frequencies = defaultdict(int)
+    for token in tokens:
+        frequencies[token] += 1
+    return dict(frequencies)
