@@ -29,3 +29,24 @@ def compute_word_frequencies(tokens):
     for token in tokens:
         frequencies[token] += 1
     return dict(frequencies)
+
+def print_word_frequencies(frequencies):
+    '''
+    Print token freq sort by count and alphabet
+    O(n log n)
+    :param frequencies:
+    :return:
+    '''
+    sorted_tokens = sorted(frequencies.items(), key = lambda x: (-x[1], x[0]))
+    for token, count in sorted_tokens:
+        print(f"{token} -> {count}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python PartA.py <text_file_path>")
+        sys.exit(1)
+
+    text_file_path = sys.argv[1]
+    tokens = tokenize(text_file_path)
+    frequencies = compute_word_frequencies(tokens)
+    print_word_frequencies(frequencies)
