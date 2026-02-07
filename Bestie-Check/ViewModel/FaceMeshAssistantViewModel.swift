@@ -162,4 +162,9 @@ class FaceMeshAssistantViewModel: ObservableObject {
             updateBubble(text: "Manual analysis triggered (feature coming soon)", autoHide: true)
         }
     }
+    
+    // MARK: - Test Trigger
+    func triggerTestBubble() {
+        updateBubble(text: "Sorry! No face detected in AR scan.", autoHide: false)
+    }
 }

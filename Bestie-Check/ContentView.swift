@@ -20,8 +20,12 @@ struct ContentView: View {
             
             // AI 气泡 overlay
             if viewModel.isBubbleVisible {
-                BubbleView(text: viewModel.bubbleText) {
-                    viewModel.hideBubble()
+                VStack {
+                    ReactTextBarWithCircle(text: viewModel.bubbleText)
+                        .padding(.top, 60)
+                        .padding(.horizontal, 20)
+                    
+                    Spacer()
                 }
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.isBubbleVisible)
             }
@@ -64,6 +68,23 @@ struct ContentView: View {
                             viewModel.errorMessage = nil
                         }
                 }
+            }
+            
+            // 测试按钮 - 手动触发气泡
+            VStack {
+                Spacer()
+                Button(action: {
+                    viewModel.triggerTestBubble()
+                }) {
+                    Text("Test Bubble")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.blue.opacity(0.8))
+                        .cornerRadius(8)
+                }
+                .padding(.bottom, 50)
             }
         }
         .onAppear {
