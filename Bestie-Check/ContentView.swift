@@ -21,9 +21,20 @@ struct ContentView: View {
             // AI 气泡 overlay
             if viewModel.isBubbleVisible {
                 VStack {
-                    ReactTextBarWithCircle(text: viewModel.bubbleText)
-                        .padding(.top, 60)
-                        .padding(.horizontal, 20)
+                    ZStack(alignment: .topTrailing) {
+                        // 气泡框
+                        ReactTextBarWithCircle(text: viewModel.bubbleText)
+                        
+                        // LogoFrame 圆形叠加在气泡上
+                        LogoFrame(
+                            horizontalOffset: -6,   // 调整水平位置：正值向右，负值向左
+                            verticalOffset: 0,     // 调整垂直位置：正值向下，负值向上
+                            imageScale: 1.2        // 调整图像缩放：1.0为原始大小
+                        )
+                            .frame(height: 120)  // 与气泡高度一致
+                    }
+                    .padding(.top, 60)
+                    .padding(.horizontal, 20)
                     
                     Spacer()
                 }

@@ -177,26 +177,264 @@ struct BubbleWithLCutout: Shape {
     }
 }
 
-struct LogoFrame: Shape {
+// MARK: - ARIcon 眼睛构件（直接使用SVG Path数据）
+
+/// AR图标的眼眶（使用SVG原始path数据）
+struct ARIconEyeSocket: Shape {
     func path(in rect: CGRect) -> Path {
-        let position = getPos(in: rect)
-        let logoRadius: CGFloat = 21
+        let scaleX = rect.width / 63.0
+        let scaleY = rect.height / 73.0
         
         return Path { path in
-            // 以计算的圆心位置画一个圆
-            path.addEllipse(in: CGRect(
-                x: position.x - logoRadius,
-                y: position.y - logoRadius,
-                width: logoRadius * 2,
-                height: logoRadius * 2
-            ))
+            // 直接使用SVG的path数据：
+            // M31.4454 24.4276C24.4494 24.3113 17.2139 29.1986 12.6651 34.2056...
+            
+            // 起点
+            path.move(to: CGPoint(x: 31.4454 * scaleX, y: 24.4276 * scaleY))
+            
+            // 第一段贝塞尔曲线（左侧眼眶）
+            path.addCurve(
+                to: CGPoint(x: 12.6651 * scaleX, y: 34.2056 * scaleY),
+                control1: CGPoint(x: 24.4494 * scaleX, y: 24.3113 * scaleY),
+                control2: CGPoint(x: 17.2139 * scaleX, y: 29.1986 * scaleY)
+            )
+            
+            // 左下曲线
+            path.addCurve(
+                to: CGPoint(x: 12.6651 * scaleX, y: 38.069 * scaleY),
+                control1: CGPoint(x: 12.1876 * scaleX, y: 34.7357 * scaleY),
+                control2: CGPoint(x: 11.9234 * scaleX, y: 36.8507 * scaleY)
+            )
+            
+            // 底部曲线
+            path.addCurve(
+                to: CGPoint(x: 31.4454 * scaleX, y: 47.854 * scaleY),
+                control1: CGPoint(x: 17.1133 * scaleX, y: 42.9701 * scaleY),
+                control2: CGPoint(x: 24.3297 * scaleX, y: 47.972 * scaleY)
+            )
+            
+            // 右侧曲线
+            path.addCurve(
+                to: CGPoint(x: 50.231 * scaleX, y: 38.069 * scaleY),
+                control1: CGPoint(x: 38.5612 * scaleX, y: 47.972 * scaleY),
+                control2: CGPoint(x: 45.7776 * scaleX, y: 42.9701 * scaleY)
+            )
+            
+            // 右上曲线
+            path.addCurve(
+                to: CGPoint(x: 50.231 * scaleX, y: 34.2056 * scaleY),
+                control1: CGPoint(x: 50.7084 * scaleX, y: 37.5389 * scaleY),
+                control2: CGPoint(x: 50.9727 * scaleX, y: 35.4239 * scaleY)
+            )
+            
+            // 顶部曲线回到起点
+            path.addCurve(
+                to: CGPoint(x: 31.4454 * scaleX, y: 24.4276 * scaleY),
+                control1: CGPoint(x: 45.6769 * scaleX, y: 29.1986 * scaleY),
+                control2: CGPoint(x: 38.4414 * scaleX, y: 24.3113 * scaleY)
+            )
+        }
+    }
+}
+
+/// AR图标的瞳孔（使用SVG原始path数据，可移动）
+struct ARIconPupil: Shape {
+    var position: CGPoint = CGPoint(x: 0.5, y: 0.5)  // 相对位置（0-1）
+    var offsetRange: CGFloat = 3.0  // 瞳孔可移动的范围
+    
+    func path(in rect: CGRect) -> Path {
+        let scaleX = rect.width / 63.0
+        let scaleY = rect.height / 73.0
+        
+        // 瞳孔移动偏移
+        let offsetX = (position.x - 0.5) * offsetRange * scaleX
+        let offsetY = (position.y - 0.5) * offsetRange * scaleY
+        
+        return Path { path in
+            // 直接使用SVG的瞳孔path数据（添加偏移）
+            // M36.2579 36.1416C36.2579 37.0933...
+            
+            let centerX = 31.4462 * scaleX + offsetX
+            let centerY = 36.1416 * scaleY + offsetY
+            
+            // 起点
+            path.move(to: CGPoint(x: 36.2579 * scaleX + offsetX, y: 36.1416 * scaleY + offsetY))
+            
+            // 绘制瞳孔圆形（使用贝塞尔曲线近似）
+            // 瞳孔半径计算
+            let radius = (36.2579 - 31.4462) * scaleX
+            
+            // 使用四段贝塞尔曲线绘制圆形
+            let k = 0.5522847498  // 圆形的贝塞尔曲线常数
+            
+            // 右侧起点
+            path.move(to: CGPoint(x: centerX + radius, y: centerY))
+            
+            // 右下
+            path.addCurve(
+                to: CGPoint(x: centerX, y: centerY + radius),
+                control1: CGPoint(x: centerX + radius, y: centerY + radius * k),
+                control2: CGPoint(x: centerX + radius * k, y: centerY + radius)
+            )
+            
+            // 左下
+            path.addCurve(
+                to: CGPoint(x: centerX - radius, y: centerY),
+                control1: CGPoint(x: centerX - radius * k, y: centerY + radius),
+                control2: CGPoint(x: centerX - radius, y: centerY + radius * k)
+            )
+            
+            // 左上
+            path.addCurve(
+                to: CGPoint(x: centerX, y: centerY - radius),
+                control1: CGPoint(x: centerX - radius, y: centerY - radius * k),
+                control2: CGPoint(x: centerX - radius * k, y: centerY - radius)
+            )
+            
+            // 右上
+            path.addCurve(
+                to: CGPoint(x: centerX + radius, y: centerY),
+                control1: CGPoint(x: centerX + radius * k, y: centerY - radius),
+                control2: CGPoint(x: centerX + radius, y: centerY - radius * k)
+            )
+        }
+    }
+}
+
+/// AR图标视图 - 完整的AR扫描图标
+struct ARIconView: View {
+    var pupilPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)  // 瞳孔位置（0-1，0.5为居中）
+    var eyeSocketColor: Color = .black
+    var pupilColor: Color = .black
+    var strokeWidth: CGFloat = 3.5
+    var showDecorations: Bool = true  // 是否显示周围的装饰线条
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // 周围的装饰线条（如果需要）
+                if showDecorations {
+                    ARIconDecorations()
+                        .stroke(eyeSocketColor, lineWidth: strokeWidth)
+                }
+                
+                // 眼眶
+                ARIconEyeSocket()
+                    .stroke(eyeSocketColor, lineWidth: strokeWidth)
+                
+                // 瞳孔
+                ARIconPupil(position: pupilPosition)
+                    .stroke(pupilColor, lineWidth: strokeWidth)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+    }
+}
+
+/// AR图标的装饰线条（周围的扫描线）
+struct ARIconDecorations: Shape {
+    func path(in rect: CGRect) -> Path {
+        let scaleX = rect.width / 63.0
+        let scaleY = rect.height / 73.0
+        
+        return Path { path in
+            // 顶部垂直线
+            path.move(to: CGPoint(x: 31.4455 * scaleX, y: 1.72778 * scaleY))
+            path.addLine(to: CGPoint(x: 31.4455 * scaleX, y: 11.3933 * scaleY))
+            
+            // 底部垂直线
+            path.move(to: CGPoint(x: 31.4455 * scaleX, y: 60.8875 * scaleY))
+            path.addLine(to: CGPoint(x: 31.4455 * scaleX, y: 70.553 * scaleY))
+            
+            // 左上对角线
+            path.move(to: CGPoint(x: 11.1825 * scaleX, y: 22.9646 * scaleY))
+            path.addLine(to: CGPoint(x: 2.81193 * scaleX, y: 18.1318 * scaleY))
+            
+            // 左下对角线
+            path.move(to: CGPoint(x: 11.1825 * scaleX, y: 49.3171 * scaleY))
+            path.addLine(to: CGPoint(x: 2.81193 * scaleX, y: 54.1499 * scaleY))
+            
+            // 右上对角线
+            path.move(to: CGPoint(x: 52.7973 * scaleX, y: 22.9646 * scaleY))
+            path.addLine(to: CGPoint(x: 61.1679 * scaleX, y: 18.1318 * scaleY))
+            
+            // 右下对角线
+            path.move(to: CGPoint(x: 52.7973 * scaleX, y: 49.3171 * scaleY))
+            path.addLine(to: CGPoint(x: 61.1679 * scaleX, y: 54.1499 * scaleY))
+            
+            // 顶部角线组
+            path.move(to: CGPoint(x: 23.627 * scaleX, y: 5.84411 * scaleY))
+            path.addLine(to: CGPoint(x: 31.448 * scaleX, y: 1.72778 * scaleY))
+            path.addLine(to: CGPoint(x: 39.269 * scaleX, y: 5.84411 * scaleY))
+            
+            // 底部角线组
+            path.move(to: CGPoint(x: 23.627 * scaleX, y: 66.4368 * scaleY))
+            path.addLine(to: CGPoint(x: 31.448 * scaleX, y: 70.5531 * scaleY))
+            path.addLine(to: CGPoint(x: 39.269 * scaleX, y: 66.4368 * scaleY))
+            
+            // 右上角连接线
+            path.move(to: CGPoint(x: 53.3465 * scaleX, y: 13.2537 * scaleY))
+            path.addLine(to: CGPoint(x: 61.1675 * scaleX, y: 17.37 * scaleY))
+            path.addLine(to: CGPoint(x: 61.1675 * scaleX, y: 26.7552 * scaleY))
+            
+            // 右下角连接线
+            path.move(to: CGPoint(x: 53.3465 * scaleX, y: 59.0272 * scaleY))
+            path.addLine(to: CGPoint(x: 61.1675 * scaleX, y: 54.9109 * scaleY))
+            path.addLine(to: CGPoint(x: 61.1675 * scaleX, y: 45.5256 * scaleY))
+            
+            // 左上角连接线
+            path.move(to: CGPoint(x: 9.54883 * scaleX, y: 13.2537 * scaleY))
+            path.addLine(to: CGPoint(x: 1.72781 * scaleX, y: 17.37 * scaleY))
+            path.addLine(to: CGPoint(x: 1.72781 * scaleX, y: 26.7552 * scaleY))
+            
+            // 左下角连接线
+            path.move(to: CGPoint(x: 9.54883 * scaleX, y: 59.0272 * scaleY))
+            path.addLine(to: CGPoint(x: 1.72781 * scaleX, y: 54.9109 * scaleY))
+            path.addLine(to: CGPoint(x: 1.72781 * scaleX, y: 45.5256 * scaleY))
+        }
+    }
+}
+
+// MARK: - LogoFrame
+/// 在缺口位置显示Logo的圆形框架
+struct LogoFrame: View {
+    var horizontalOffset: CGFloat = 0  // 水平偏移（正值向右，负值向左）
+    var verticalOffset: CGFloat = 0    // 垂直偏移（正值向下，负值向上）
+    var imageScale: CGFloat = 1.2      // 图像缩放比例
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let position = getPos(in: geometry.frame(in: .local))
+            let logoRadius: CGFloat = 28
+            
+            // 圆形容器，内部填充SVG图像
+            Circle()
+                .fill(Color.white)
+                .frame(width: logoRadius * 2, height: logoRadius * 2)
+                .overlay(
+                    Image("LogoIcon")
+                        .renderingMode(.original)  // 保留原始渲染模式
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)  // 使用fill模式填充整个区域
+                        .frame(width: logoRadius * 2, height: logoRadius * 2)
+                        .clipShape(Circle())  // 裁剪成圆形
+                        .scaleEffect(imageScale)  // 可调节的缩放
+                        .offset(x: horizontalOffset, y: verticalOffset)  // 可调节的偏移
+                )
+                .overlay(
+                    Circle()
+                        .stroke(Color.blue, lineWidth: 2)
+                )
+                .position(position)
         }
     }
     
     func getPos(in rect: CGRect) -> CGPoint {
-        let logoRadius: CGFloat = 21
-        let x = rect.maxX - CutoutPositionCalculator.cutoutWidth / 2 - 3
-        let y = rect.minY - x + 3
+        // 圆心应该在缺口的中心位置
+        // X: 缺口中心的X坐标
+        let x = rect.maxX - CutoutPositionCalculator.cutoutWidth / 2
+        // Y: 缺口中心的Y坐标（从顶部开始）
+        let y = rect.minY + CutoutPositionCalculator.cutoutHeight / 8
         
         return CGPoint(x: x, y: y)
     }
@@ -223,4 +461,53 @@ struct LogoFrame: Shape {
         .padding()
     }
     .background(Color.black)
+}
+
+#Preview("ARIconView") {
+    VStack(spacing: 30) {
+        // 基础AR图标
+        ARIconView()
+            .frame(width: 63, height: 73)
+        
+        // 瞳孔向右看
+        ARIconView(pupilPosition: CGPoint(x: 0.7, y: 0.5))
+            .frame(width: 63, height: 73)
+        
+        // 瞳孔向左看
+        ARIconView(pupilPosition: CGPoint(x: 0.3, y: 0.5))
+            .frame(width: 63, height: 73)
+        
+        // 瞳孔向上看
+        ARIconView(pupilPosition: CGPoint(x: 0.5, y: 0.3))
+            .frame(width: 63, height: 73)
+        
+        // 白色AR图标（不显示装饰线）
+        ARIconView(
+            eyeSocketColor: .white,
+            pupilColor: .white,
+            showDecorations: false
+        )
+        .frame(width: 50, height: 58)
+        .background(Color.black)
+        
+        // 动画示例
+        ARIconAnimatedView()
+            .frame(width: 63, height: 73)
+    }
+    .padding()
+}
+
+/// AR图标动画示例 - 瞳孔自动移动
+struct ARIconAnimatedView: View {
+    @State private var pupilPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
+    
+    var body: some View {
+        ARIconView(pupilPosition: pupilPosition)
+            .onAppear {
+                // 瞳孔循环移动动画
+                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                    pupilPosition = CGPoint(x: 0.7, y: 0.3)
+                }
+            }
+    }
 }
