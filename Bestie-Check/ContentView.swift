@@ -12,11 +12,38 @@ import Combine
 struct ContentView: View {
     @StateObject private var viewModel = FaceMeshAssistantViewModel()
     
+    // 人脸检测接口（默认未检测到）
+    private let faceDetectionProvider: FaceDetectionProvider = DefaultFaceDetectionProvider()
+    
     var body: some View {
         ZStack {
             // AR 画面（全屏）
             ARViewContainer(viewModel: viewModel)
                 .ignoresSafeArea()
+            
+            // ViewFinder 取景框（全屏居中）
+            ViewFinder(
+                frameWidth: 280,
+                frameHeight: 360,
+                cornerLength: 30,
+                lineWidth: 3,
+                color: faceDetectionProvider.faceDetected ? .green : .white,
+                animating: !faceDetectionProvider.faceDetected
+            )
+            
+            // ARIcon 组件（放在 ViewFinder 下面）
+            VStack {
+                Spacer()
+                ARIconView(
+                    pupilPosition: CGPoint(x: 0.5, y: 0.5),
+                    eyeSocketColor: .white.opacity(0.8),
+                    pupilColor: .blue,
+                    strokeWidth: 3.5,
+                    showDecorations: true
+                )
+                .frame(width: 80, height: 93)  // 保持 63:73 的宽高比
+                .padding(.bottom, 120)
+            }
             
             // AI 气泡 overlay
             if viewModel.isBubbleVisible {
@@ -109,5 +136,4 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .previewDevice("iPhone 15 Pro")
 }
