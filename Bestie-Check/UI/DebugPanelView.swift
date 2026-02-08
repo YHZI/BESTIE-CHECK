@@ -10,6 +10,7 @@ import Combine
 
 struct DebugPanelView: View {
     @ObservedObject var viewModel: FaceMeshAssistantViewModel
+    @Binding var isLongTextMode: Bool  // 添加 Binding 参数
     @State private var isExpanded: Bool = false
     
     var body: some View {
@@ -88,6 +89,27 @@ struct DebugPanelView: View {
                         .background(Color.blue.opacity(0.7))
                         .cornerRadius(6)
                     }
+                    
+                    Divider()
+                        .background(Color.white.opacity(0.3))
+                    
+                    // 切换长/短文本按钮
+                    Button(action: {
+                        withAnimation {
+                            isLongTextMode.toggle()
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: isLongTextMode ? "text.alignleft" : "text.aligncenter")
+                            Text(isLongTextMode ? "Long Text Mode" : "Short Text Mode")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(8)
+                        .background(isLongTextMode ? Color.orange.opacity(0.7) : Color.green.opacity(0.7))
+                        .cornerRadius(6)
+                    }
                 }
                 .padding(12)
                 .background(Color.black.opacity(0.7))
@@ -101,6 +123,14 @@ struct DebugPanelView: View {
 }
 
 #Preview {
-    DebugPanelView(viewModel: FaceMeshAssistantViewModel())
-        .background(Color.black)
+    struct PreviewWrapper: View {
+        @State private var isLongTextMode = false
+        
+        var body: some View {
+            DebugPanelView(viewModel: FaceMeshAssistantViewModel(), isLongTextMode: $isLongTextMode)
+                .background(Color.black)
+        }
+    }
+    
+    return PreviewWrapper()
 }
