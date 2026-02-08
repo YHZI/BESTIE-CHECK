@@ -131,12 +131,14 @@ struct BubbleWithLCutout: Shape {
             )
             
             // 7. 缺口水平边（向右）
-            path.addLine(to: CGPoint(x: rect.maxX - cutoutCornerRadius, y: rect.minY + cutoutHeight))
+            let cutoutCornerRadiusBig : CGFloat = 24
+            path.addLine(to: CGPoint(x: rect.maxX - cutoutCornerRadiusBig, y: rect.minY + cutoutHeight))
             
-            // 缺口圆角 （水平->垂直）
+            // 缺口圆角3 弧度18->24（水平->垂直）
+            
             path.addArc(
-                center: CGPoint(x: rect.maxX - cutoutCornerRadius, y: rect.minY + cutoutHeight + cutoutCornerRadius),
-                radius: cutoutCornerRadius,
+                center: CGPoint(x: rect.maxX - cutoutCornerRadiusBig, y: rect.minY + cutoutHeight + cutoutCornerRadiusBig),
+                radius: cutoutCornerRadiusBig,
                 startAngle: Angle(degrees: 270),
                 endAngle: Angle(degrees: 0),
                 clockwise: false
