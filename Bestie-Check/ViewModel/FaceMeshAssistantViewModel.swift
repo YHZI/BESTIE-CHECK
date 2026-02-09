@@ -81,6 +81,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
         // 1. Face Landmarker 推理（后台队列）
         guard let result = try? await faceLandmarkerService.processFrame(pixelBuffer, timestampMs: timestampMs) else {
             // 推理失败或未检测到人脸
+            await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
             if showNoFaceMessage {
                 updateBubble(text: "No face detected", autoHide: true)
             }
@@ -89,16 +90,21 @@ class FaceMeshAssistantViewModel: ObservableObject {
         
         // 2. 提取摘要
         guard let summary = FaceLandmarkerService.extractSummary(from: result, timestampMs: timestampMs) else {
+            await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
             return
         }
         
         // 如果没有检测到脸，可选显示提示
         if !summary.hasFace {
+            await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
             if showNoFaceMessage {
                 updateBubble(text: "No face detected", autoHide: true)
             }
             return
         }
+        
+        // 检测到人脸，更新状态
+        await FaceDetectionProvider.shared.updateFaceDetection(detected: true)
         
         // 3. 调用 AI API（后台任务）
         isLoading = true
@@ -151,6 +157,30 @@ class FaceMeshAssistantViewModel: ObservableObject {
     func hideBubble() {
         bubbleAutoHideTask?.cancel()
         isBubbleVisible = false
+    }
+    
+    // MARK: - Detection Reset
+    /// 重置后台检测状态
+    func resetDetection() {
+        print("🔄 ViewModel: Resetting detection state...")
+        
+        // 1. 重置时间戳，允许立即处理下一帧
+        lastProcessedTimestamp = 0
+        
+        // 2. 清除气泡文本
+        bubbleText = ""
+        isBubbleVisible = false
+        
+        // 3. 取消自动隐藏任务
+        bubbleAutoHideTask?.cancel()
+        
+        // 4. 清除错误消息
+        errorMessage = nil
+        
+        // 5. 重置加载状态
+        isLoading = false
+        
+        print("✅ ViewModel: Detection state reset completed")
     }
     
     // MARK: - Manual Trigger

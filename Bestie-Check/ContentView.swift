@@ -11,15 +11,16 @@ import Combine
 
 struct ContentView: View {
     @StateObject private var viewModel = FaceMeshAssistantViewModel()
-    
-    // 人脸检测接口（默认未检测到）
-    private let faceDetectionProvider: FaceDetectionProvider = DefaultFaceDetectionProvider()
+    @ObservedObject private var faceDetectionProvider = FaceDetectionProvider.shared
     
     // 气泡框展开状态
     @State private var isBubbleExpanded: Bool = false
     
     // 测试文本模式（短文本/长文本）
     @State private var isLongTextMode: Bool = false
+    
+    // ViewFinder 扫描线开关
+    @State private var showViewFinderScan: Bool = false
     
     // 测试文本内容
     var testText: String {
@@ -31,6 +32,25 @@ The bubble shape should maintain the L-shaped cutout at the top right corner thr
 
 This text continues with even more content to ensure that the height exceeds 120 points and triggers the expansion mechanism. We need to test multiple paragraphs and line breaks to verify that the layout handles various text lengths correctly.
 
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
+Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
 Additional paragraph here to make absolutely sure we exceed the minimum height threshold. The responsive design should kick in automatically when this much text is present.
 """
         } else {
@@ -52,7 +72,8 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     cornerLength: 30,
                     lineWidth: 3,
                     color: faceDetectionProvider.faceDetected ? .green : .white,
-                    animating: !faceDetectionProvider.faceDetected
+                    showScanLine: showViewFinderScan,
+                    faceDetected: faceDetectionProvider.faceDetected
                 )
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.3), value: isBubbleExpanded)
@@ -79,8 +100,17 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             // AI 气泡 overlay（始终显示）
             VStack {
                 ZStack(alignment: .topTrailing) {
-                    // 气泡框
-                    ReactTextBarWithCircle(title: "", text: testText, isExpanded: $isBubbleExpanded)
+                    // 气泡框 - 三个接口：title, text, isExpanded
+                    ReactTextBarWithCircle(
+                        title: "",
+                        text: testText,
+                        isExpanded: $isBubbleExpanded
+                    )
+                    .onChange(of: isLongTextMode) { oldValue, newValue in
+                        print("🔀 ContentView: isLongTextMode changed: \(oldValue) → \(newValue)")
+                        print("📏 ContentView: testText length is now: \(testText.count)")
+                        print("📖 ContentView: First 100 chars: \(String(testText.prefix(100)))")
+                    }
                     
                     // LogoFrame 圆形叠加在气泡上
                     LogoFrame(
@@ -95,13 +125,52 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 
                 Spacer()
             }
-            .zIndex(isBubbleExpanded ? 1000 : 1)  // 展开时悬浮在所有UI之上
+            .zIndex(1)  // 固定 zIndex，不再动态提升
             
-            // 调试面板（右上角）
+            // 左上角返回按钮（智能模式：自动处理 ReactTextBar 状态）
+            VStack {
+                HStack {
+                    BackButton(
+                        diameter: 22,
+                        isTextBarExpanded: Binding(
+                            get: { isBubbleExpanded ? true : nil },
+                            set: { newValue in
+                                if let value = newValue {
+                                    isBubbleExpanded = value
+                                } else {
+                                    isBubbleExpanded = false
+                                }
+                            }
+                        ),
+                        onResetDetection: {
+                            // 重置 APP 后台检测方法
+                            print("🔄 Resetting backend detection...")
+                            viewModel.resetDetection()
+                        },
+                        action: {
+                            // 额外的自定义操作（可选）
+                            print("📍 Back button custom action executed")
+                        }
+                    )
+                    .padding(.leading, 40)
+                    .padding(.top, 24)
+                    
+                    Spacer()
+                }
+                Spacer()
+            }
+            .zIndex(100)  // 在气泡之上，调试面板之下
+            
+            // 调试面板（右上角）- 始终在最前端
             HStack {
                 Spacer()
-                DebugPanelView(viewModel: viewModel, isLongTextMode: $isLongTextMode)
+                DebugPanelView(
+                    viewModel: viewModel, 
+                    isLongTextMode: $isLongTextMode,
+                    showViewFinderScan: $showViewFinderScan
+                )
             }
+            .zIndex(1000)  // 始终在最前端
             
             // Loading 指示器
             if viewModel.isLoading {

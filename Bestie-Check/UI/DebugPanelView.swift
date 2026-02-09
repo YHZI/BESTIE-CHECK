@@ -10,7 +10,9 @@ import Combine
 
 struct DebugPanelView: View {
     @ObservedObject var viewModel: FaceMeshAssistantViewModel
+    @ObservedObject var faceDetectionProvider = FaceDetectionProvider.shared  // 人脸检测状态
     @Binding var isLongTextMode: Bool  // 添加 Binding 参数
+    @Binding var showViewFinderScan: Bool  // ViewFinder 扫描线开关
     @State private var isExpanded: Bool = false
     
     var body: some View {
@@ -110,6 +112,42 @@ struct DebugPanelView: View {
                         .background(isLongTextMode ? Color.orange.opacity(0.7) : Color.green.opacity(0.7))
                         .cornerRadius(6)
                     }
+                    
+                    // ViewFinder 扫描线按钮
+                    Button(action: {
+                        withAnimation {
+                            showViewFinderScan.toggle()
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: showViewFinderScan ? "eye.fill" : "eye.slash.fill")
+                            Text("ViewFinder_Scan")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(8)
+                        .background(showViewFinderScan ? Color.purple.opacity(0.7) : Color.gray.opacity(0.7))
+                        .cornerRadius(6)
+                    }
+                    
+                    // FaceDetected 手动切换按钮（用于测试）
+                    Button(action: {
+                        withAnimation {
+                            faceDetectionProvider.updateFaceDetection(detected: !faceDetectionProvider.faceDetected)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: faceDetectionProvider.faceDetected ? "face.smiling.fill" : "face.dashed.fill")
+                            Text("FaceDetected")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(8)
+                        .background(faceDetectionProvider.faceDetected ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
+                        .cornerRadius(6)
+                    }
                 }
                 .padding(12)
                 .background(Color.black.opacity(0.7))
@@ -125,9 +163,14 @@ struct DebugPanelView: View {
 #Preview {
     struct PreviewWrapper: View {
         @State private var isLongTextMode = false
+        @State private var showViewFinderScan = false
         
         var body: some View {
-            DebugPanelView(viewModel: FaceMeshAssistantViewModel(), isLongTextMode: $isLongTextMode)
+            DebugPanelView(
+                viewModel: FaceMeshAssistantViewModel(), 
+                isLongTextMode: $isLongTextMode,
+                showViewFinderScan: $showViewFinderScan
+            )
                 .background(Color.black)
         }
     }
