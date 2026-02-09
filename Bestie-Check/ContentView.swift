@@ -85,13 +85,15 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     Spacer()
                     ARIconView(
                         pupilPosition: CGPoint(x: 0.5, y: 0.5),
-                        eyeSocketColor: .white.opacity(0.8),
-                        pupilColor: .blue,
+                        eyeSocketColor: .white,
+                        pupilColor: .white,
                         strokeWidth: 3.5,
-                        showDecorations: true
+                        showDecorations: true,
+                        enableBlinking: true
                     )
-                    .frame(width: 80, height: 93)  // 保持 63:73 的宽高比
-                    .padding(.bottom, 120)
+                    .frame(width: 56, height: 65)  // 70% of original 80x93
+                    .opacity(0.7)  // 70% opacity
+                    .padding(.bottom, 65)  // 65px from bottom
                 }
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.3), value: isBubbleExpanded)

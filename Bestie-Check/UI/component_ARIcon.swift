@@ -208,6 +208,10 @@ struct ARIconView: View {
     var pupilColor: Color = .black
     var strokeWidth: CGFloat = 3.5
     var showDecorations: Bool = true  // 是否显示周围的装饰线条
+    var enableBlinking: Bool = false  // 是否启用眨眼动画
+    
+    @State private var isBlinking: Bool = false
+    @State private var blinkTimer: Timer?
     
     var body: some View {
         GeometryReader { geometry in
@@ -218,16 +222,58 @@ struct ARIconView: View {
                         .stroke(eyeSocketColor, lineWidth: strokeWidth)
                 }
                 
-                // 眼眶
+                // 眼眶 - 添加眨眼效果
                 ARIconEyeSocket()
                     .stroke(eyeSocketColor, lineWidth: strokeWidth)
+                    .scaleEffect(y: isBlinking ? 0.1 : 1.0)  // 眨眼时垂直缩放
+                    .animation(.easeInOut(duration: 0.15), value: isBlinking)
                 
-                // 瞳孔
+                // 瞳孔 - 也需要同步眨眼
                 ARIconPupil(position: pupilPosition)
                     .stroke(pupilColor, lineWidth: strokeWidth)
+                    .scaleEffect(y: isBlinking ? 0.1 : 1.0)  // 与眼眶同步眨眼
+                    .animation(.easeInOut(duration: 0.15), value: isBlinking)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
+        .onAppear {
+            if enableBlinking {
+                startBlinking()
+            }
+        }
+        .onDisappear {
+            stopBlinking()
+        }
+    }
+    
+    // 开始眨眼动画
+    private func startBlinking() {
+        // 随机间隔眨眼（2-5秒）
+        let randomInterval = Double.random(in: 2.0...5.0)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + randomInterval) {
+            // 执行一次眨眼
+            performBlink()
+            
+            // 继续下一次眨眼
+            if enableBlinking {
+                startBlinking()
+            }
+        }
+    }
+    
+    // 执行一次眨眼动作
+    private func performBlink() {
+        isBlinking = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            isBlinking = false
+        }
+    }
+    
+    // 停止眨眼
+    private func stopBlinking() {
+        blinkTimer?.invalidate()
+        blinkTimer = nil
     }
 }
 
@@ -251,6 +297,10 @@ struct ARIconAnimatedView: View {
     VStack(spacing: 30) {
         // 基础AR图标
         ARIconView()
+            .frame(width: 63, height: 73)
+        
+        // 带眨眼效果的AR图标
+        ARIconView(enableBlinking: true)
             .frame(width: 63, height: 73)
         
         // 瞳孔向右看
