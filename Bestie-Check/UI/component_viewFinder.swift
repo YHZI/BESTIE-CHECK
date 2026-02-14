@@ -22,12 +22,6 @@ struct ViewFinder: View {
     
     var body: some View {
         ZStack {
-            // 半透明背景遮罩（四周变暗，中间透明）
-            ViewFinderMask(
-                frameWidth: frameWidth,
-                frameHeight: frameHeight
-            )
-            
             // 取景框的四个角（带人脸检测动画）
             ViewFinderCorners(
                 frameWidth: frameWidth,
@@ -46,29 +40,6 @@ struct ViewFinder: View {
                     color: color
                 )
             }
-        }
-    }
-}
-
-// MARK: - ViewFinder 遮罩
-/// 创建中间透明、四周半透明的遮罩效果
-struct ViewFinderMask: View {
-    var frameWidth: CGFloat
-    var frameHeight: CGFloat
-    
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // 全屏半透明黑色背景
-                Color.black.opacity(0.5)
-                    .ignoresSafeArea()
-                
-                // 中间透明矩形（使用反向遮罩）
-                Rectangle()
-                    .frame(width: frameWidth, height: frameHeight)
-                    .blendMode(.destinationOut)
-            }
-            .compositingGroup()
         }
     }
 }

@@ -22,6 +22,9 @@ struct ContentView: View {
     // ViewFinder 扫描线开关
     @State private var showViewFinderScan: Bool = false
     
+    // 背景模式：false = Camera, true = RGB Colors
+    @State private var useRGBBackground: Bool = false
+    
     // 测试文本内容
     var testText: String {
         if isLongTextMode {
@@ -61,7 +64,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
     var body: some View {
         ZStack {
             // AR 画面（全屏）
-            ARViewContainer(viewModel: viewModel)
+            ARViewContainer(viewModel: viewModel, useRGBBackground: $useRGBBackground)
                 .ignoresSafeArea()
             
             // ViewFinder 取景框（全屏居中）- 展开时隐藏
@@ -149,6 +152,16 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                             print("🔄 Resetting backend detection...")
                             viewModel.resetDetection()
                         },
+                        isLongTextMode: Binding(
+                            get: { isLongTextMode ? true : nil },
+                            set: { newValue in
+                                if let value = newValue {
+                                    isLongTextMode = value
+                                } else {
+                                    isLongTextMode = false
+                                }
+                            }
+                        ),
                         action: {
                             // 额外的自定义操作（可选）
                             print("📍 Back button custom action executed")
@@ -167,9 +180,10 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             HStack {
                 Spacer()
                 DebugPanelView(
-                    viewModel: viewModel, 
+                    viewModel: viewModel,
                     isLongTextMode: $isLongTextMode,
-                    showViewFinderScan: $showViewFinderScan
+                    showViewFinderScan: $showViewFinderScan,
+                    useRGBBackground: $useRGBBackground
                 )
             }
             .zIndex(1000)  // 始终在最前端
