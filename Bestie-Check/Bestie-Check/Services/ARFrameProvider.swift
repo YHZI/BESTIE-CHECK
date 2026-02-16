@@ -1,0 +1,93 @@
+//
+//  ARFrameProvider.swift
+//  Bestie-Check
+//
+//  ARKit 取帧层：从 ARSession 获取实时相机帧
+//
+
+import ARKit
+import AVFoundation
+import Combine
+import RealityKit
+
+/// ARFrameProvider: 管理 ARSession，提供实时相机帧流
+@MainActor
+class ARFrameProvider: NSObject, ObservableObject {
+    // MARK: - Properties
+    private var arSession: ARSession?
+    private var frameContinuation: AsyncStream<TimestampedFrameBox>.Continuation?
+    
+    /// 输出：最新帧流（带时间戳）
+    var frameStream: AsyncStream<TimestampedFrameBox>?
+    
+    // MARK: - Initialization
+    override init() {
+        super.init()
+        setupFrameStream()
+    }
+    
+    private func setupFrameStream() {
+        var continuation: AsyncStream<TimestampedFrameBox>.Continuation?
+        frameStream = AsyncStream<TimestampedFrameBox> { cont in
+            continuation = cont
+        }
+        frameContinuation = continuation
+    }
+    
+    // MARK: - ARSession Management
+    func startSession(arView: ARView) {
+        arSession = arView.session
+        arSession?.delegate = self
+        
+        // 优先尝试 Face Tracking（需要 TrueDepth）
+        if ARFaceTrackingConfiguration.isSupported {
+            let configuration = ARFaceTrackingConfiguration()
+            configuration.maximumNumberOfTrackedFaces = 1
+            arSession?.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+            print("✅ ARFaceTrackingConfiguration started")
+        } else {
+            // 降级：使用 World Tracking（ARKit 会使用后置摄像头）
+            let configuration = ARWorldTrackingConfiguration()
+            arSession?.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+            print("⚠️ ARWorldTrackingConfiguration started (Face Tracking not supported)")
+        }
+    }
+    
+    func stopSession() {
+        arSession?.pause()
+        arSession = nil
+    }
+}
+
+// MARK: - ARSessionDelegate
+extension ARFrameProvider: ARSessionDelegate {
+    nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        // 获取相机原始画面（CVPixelBuffer）
+        let pixelBuffer = frame.capturedImage
+        
+        // 计算时间戳（毫秒）
+        let timestampMs = Int64(frame.timestamp * 1000)
+        
+        // 发送到流（注意：这里需要回到 MainActor 来访问 continuation）
+        Task { @MainActor in
+            frameContinuation?.yield(
+                TimestampedFrameBox(
+                    pixelBufferBox: PixelBufferBox(pixelBuffer: pixelBuffer),
+                    timestampMs: timestampMs
+                )
+            )
+        }
+    }
+    
+    nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
+        print("❌ ARSession error: \(error.localizedDescription)")
+    }
+    
+    nonisolated func sessionWasInterrupted(_ session: ARSession) {
+        print("⚠️ ARSession interrupted")
+    }
+    
+    nonisolated func sessionInterruptionEnded(_ session: ARSession) {
+        print("✅ ARSession interruption ended")
+    }
+}
