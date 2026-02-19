@@ -50,12 +50,24 @@ app.post('/api/face-analysis', async (req, res) => {
       });
     }
 
-    // 构建给模型的 prompt
+    // 构建给模型的 prompt（结构化数据摘要）
     const prompt = buildPrompt(face_analysis);
-    
-    // 调用 Gemini API（generateContent）
+    const textPart =
+      'You are a friendly AI assistant. Give one short sentence (under 20 words), positive and playful. ' +
+      'Use both the face data summary and the photo (if provided) for a better answer.\n\n' + prompt;
+
+    // 组装 user parts：先文字，若有图则加 inline_data（多模态）
+    const userParts = [{ text: textPart }];
+    if (image_base64 && typeof image_base64 === 'string' && image_base64.length > 0) {
+      userParts.push({
+        inline_data: {
+          mime_type: 'image/jpeg',
+          data: image_base64.replace(/^data:image\/\w+;base64,/, '')
+        }
+      });
+    }
+
     const geminiResponse = await fetch(
-      // 使用 v1 端点以支持 gemini-1.5-flash 等当前模型
       `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
       {
         method: 'POST',
@@ -63,22 +75,14 @@ app.post('/api/face-analysis', async (req, res) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          // 直接把“语气/风格”指令写进用户 prompt，避免使用 system 字段带来的兼容性问题
           contents: [
             {
               role: 'user',
-              parts: [
-                {
-                  text:
-                    'You are a friendly AI assistant that provides brief, encouraging, and fun comments about facial expressions and expressions. ' +
-                    'Keep responses to one short sentence (under 20 words). Be positive and playful.\n\n' +
-                    prompt
-                }
-              ]
+              parts: userParts
             }
           ],
           generation_config: {
-            max_output_tokens: 50,
+            max_output_tokens: 80,
             temperature: 0.7
           }
         })
