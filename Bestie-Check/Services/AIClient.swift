@@ -20,8 +20,8 @@ class AIClient {
         var maxRetries: Int
         
         static let `default` = Config(
-            endpoint: "https://api.example.com/v1/chat/completions",  // TODO: 替换为你的真实 endpoint
-            apiKey: "YOUR_API_KEY_HERE",  // ⚠️ 不安全：仅用于 Demo，请使用后端代理模式
+            endpoint: "http://localhost:8080/api/face-analysis",  // 本地后端 endpoint
+            apiKey: nil,  // 后端处理 API Key
             headers: [
                 "Content-Type": "application/json"
             ],

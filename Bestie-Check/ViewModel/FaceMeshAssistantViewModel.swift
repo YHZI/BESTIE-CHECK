@@ -20,7 +20,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
     
     // MARK: - Debug Settings
     @Published var throttleIntervalMs: Int = 200  // 默认 5fps (1000/200)
-    @Published var uploadFullImage: Bool = false
+    @Published var uploadFullImage: Bool = true  // 默认上传人脸图给 AI，与 landmark 数据一起获得更好回答
     @Published var showNoFaceMessage: Bool = true
     
     // MARK: - Private Properties
@@ -31,6 +31,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
     private var frameTask: Task<Void, Never>?
     private var lastProcessedTimestamp: Int64 = 0
     private var bubbleAutoHideTask: Task<Void, Never>?
+    /// 当前「有脸」会话内是否已经请求过 AI；脸消失后重置，实现「有脸只回复一次」
+    private var hasRepliedForCurrentFaceSession: Bool = false
     
     // MARK: - Initialization
     init() {
@@ -80,7 +82,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
     private func processFrame(_ pixelBuffer: CVPixelBuffer, timestampMs: Int64) async {
         // 1. Face Landmarker 推理（后台队列）
         guard let result = try? await faceLandmarkerService.processFrame(pixelBuffer, timestampMs: timestampMs) else {
-            // 推理失败或未检测到人脸
+            // 推理失败或未检测到人脸 → 结束当前「有脸」会话，下次有脸会重新请求 AI
+            hasRepliedForCurrentFaceSession = false
             await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
             if showNoFaceMessage {
                 updateBubble(text: "No face detected", autoHide: true)
@@ -90,12 +93,14 @@ class FaceMeshAssistantViewModel: ObservableObject {
         
         // 2. 提取摘要
         guard let summary = FaceLandmarkerService.extractSummary(from: result, timestampMs: timestampMs) else {
+            hasRepliedForCurrentFaceSession = false
             await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
             return
         }
         
-        // 如果没有检测到脸，可选显示提示
+        // 如果没有检测到脸，结束当前会话
         if !summary.hasFace {
+            hasRepliedForCurrentFaceSession = false
             await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
             if showNoFaceMessage {
                 updateBubble(text: "No face detected", autoHide: true)
@@ -106,26 +111,28 @@ class FaceMeshAssistantViewModel: ObservableObject {
         // 检测到人脸，更新状态
         await FaceDetectionProvider.shared.updateFaceDetection(detected: true)
         
-        // 3. 调用 AI API（后台任务）
+        // 本「有脸」会话内已经请求过 AI → 不再重复请求，保持当前气泡
+        if hasRepliedForCurrentFaceSession {
+            return
+        }
+        
+        // 3. 本会话内首次有脸，调用 AI 一次
+        hasRepliedForCurrentFaceSession = true
         isLoading = true
         errorMessage = nil
         
         do {
-            // 可选：准备图片 base64
             let imageBase64 = uploadFullImage ? AIClient.pixelBufferToBase64(pixelBuffer) : nil
-            
-            // 调用 AI
             let aiReply = try await aiClient.getAIReply(
                 summary: summary,
                 includeImage: uploadFullImage,
                 imageBase64: imageBase64
             )
-            
-            // 4. 更新 UI（主线程）
             updateBubble(text: aiReply, autoHide: true)
             isLoading = false
-            
         } catch {
+            // 请求失败时允许下次有脸再试
+            hasRepliedForCurrentFaceSession = false
             isLoading = false
             errorMessage = "AI API Error: \(error.localizedDescription)"
             print("❌ AI API error: \(error)")
@@ -164,20 +171,12 @@ class FaceMeshAssistantViewModel: ObservableObject {
     func resetDetection() {
         print("🔄 ViewModel: Resetting detection state...")
         
-        // 1. 重置时间戳，允许立即处理下一帧
         lastProcessedTimestamp = 0
-        
-        // 2. 清除气泡文本
+        hasRepliedForCurrentFaceSession = false  // 允许下次有脸时再请求一次 AI
         bubbleText = ""
         isBubbleVisible = false
-        
-        // 3. 取消自动隐藏任务
         bubbleAutoHideTask?.cancel()
-        
-        // 4. 清除错误消息
         errorMessage = nil
-        
-        // 5. 重置加载状态
         isLoading = false
         
         print("✅ ViewModel: Detection state reset completed")
