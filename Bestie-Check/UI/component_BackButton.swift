@@ -18,6 +18,7 @@ struct BackButton: View {
     // 智能功能接口
     @Binding var isTextBarExpanded: Bool?  // ReactTextBar 展开状态（可选）
     var onResetDetection: (() -> Void)?  // 重置 APP 后台检测方法的接口
+    @Binding var isLongTextMode: Bool?  // 长文本模式状态（可选，与 DebugPanel 同步）
     
     @State private var isPressed: Bool = false
     
@@ -27,16 +28,19 @@ struct BackButton: View {
         self.action = action
         self._isTextBarExpanded = .constant(nil)
         self.onResetDetection = nil
+        self._isLongTextMode = .constant(nil)
     }
     
     // 初始化器 - 智能模式（自动处理 ReactTextBar 状态）
     init(diameter: CGFloat = 22, 
          isTextBarExpanded: Binding<Bool?>,
          onResetDetection: (() -> Void)? = nil,
+         isLongTextMode: Binding<Bool?>? = nil,
          action: @escaping () -> Void = {}) {
         self.diameter = diameter
         self._isTextBarExpanded = isTextBarExpanded
         self.onResetDetection = onResetDetection
+        self._isLongTextMode = isLongTextMode ?? .constant(nil)
         self.action = action
     }
     
@@ -87,10 +91,18 @@ struct BackButton: View {
                     isTextBarExpanded = false
                 }
                 
-                // 2. 调用后台检测重置接口（如果提供）
+                // 2. 重置 LongTextMode（如果提供）
+                if let _ = isLongTextMode {
+                    withAnimation {
+                        isLongTextMode = false
+                    }
+                    print("🔄 BackButton: LongTextMode reset to false")
+                }
+                
+                // 3. 调用后台检测重置接口（如果提供）
                 onResetDetection?()
                 
-                // 3. 执行自定义 action
+                // 4. 执行自定义 action
                 action()
                 
                 print("✅ BackButton: Reset completed")

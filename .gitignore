@@ -28,11 +28,3 @@ build/
 
 # Other
 *.xcuserstate
-
-# Backend environment variables
-backend/.env
-backend/node_modules/
-backend/.env
-Pods/
-.DS_Store
-*.xcuserstate

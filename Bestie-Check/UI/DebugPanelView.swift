@@ -13,6 +13,7 @@ struct DebugPanelView: View {
     @ObservedObject var faceDetectionProvider = FaceDetectionProvider.shared  // 人脸检测状态
     @Binding var isLongTextMode: Bool  // 添加 Binding 参数
     @Binding var showViewFinderScan: Bool  // ViewFinder 扫描线开关
+    @Binding var useRGBBackground: Bool  // 背景模式开关
     @State private var isExpanded: Bool = false
     
     var body: some View {
@@ -131,6 +132,24 @@ struct DebugPanelView: View {
                         .cornerRadius(6)
                     }
                     
+                    // RGB 背景切换按钮
+                    Button(action: {
+                        withAnimation {
+                            useRGBBackground.toggle()
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: useRGBBackground ? "paintpalette.fill" : "camera.fill")
+                            Text(useRGBBackground ? "RGB Background" : "Camera Background")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(8)
+                        .background(useRGBBackground ? Color.pink.opacity(0.7) : Color.cyan.opacity(0.7))
+                        .cornerRadius(6)
+                    }
+                    
                     // FaceDetected 手动切换按钮（用于测试）
                     Button(action: {
                         withAnimation {
@@ -164,12 +183,14 @@ struct DebugPanelView: View {
     struct PreviewWrapper: View {
         @State private var isLongTextMode = false
         @State private var showViewFinderScan = false
+        @State private var useRGBBackground = false
         
         var body: some View {
             DebugPanelView(
-                viewModel: FaceMeshAssistantViewModel(), 
+                viewModel: FaceMeshAssistantViewModel(),
                 isLongTextMode: $isLongTextMode,
-                showViewFinderScan: $showViewFinderScan
+                showViewFinderScan: $showViewFinderScan,
+                useRGBBackground: $useRGBBackground
             )
                 .background(Color.black)
         }

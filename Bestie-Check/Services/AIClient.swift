@@ -19,9 +19,8 @@ class AIClient {
         var timeout: TimeInterval
         var maxRetries: Int
         
-        // 直连 OpenAI API 配置（仅用于 Demo，不推荐用于生产）
-        static let direct = Config(
-            endpoint: "https://api.openai.com/v1/chat/completions",
+        static let `default` = Config(
+            endpoint: "https://api.example.com/v1/chat/completions",  // TODO: 替换为你的真实 endpoint
             apiKey: "YOUR_API_KEY_HERE",  // ⚠️ 不安全：仅用于 Demo，请使用后端代理模式
             headers: [
                 "Content-Type": "application/json"
@@ -72,9 +71,7 @@ class AIClient {
     private let session: URLSession
     
     // MARK: - Initialization
-    /// 初始化 AIClient
-    /// - Parameter config: 配置，默认为 backendProxy（后端代理模式）
-    init(config: Config = .backendProxy) {
+    init(config: Config = .default) {
         self.config = config
         
         let sessionConfig = URLSessionConfiguration.default
