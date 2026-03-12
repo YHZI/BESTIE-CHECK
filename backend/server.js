@@ -53,10 +53,9 @@ app.post('/api/face-analysis', async (req, res) => {
     // 构建给模型的 prompt（结构化数据摘要）
     const prompt = buildPrompt(face_analysis);
     const textPart =
-      'You are a friendly AI assistant. Give one short sentence (under 25 words), positive and playful. ' +
-      'IMPORTANT: If a photo is provided, you MUST tell the user whether their face appears to have makeup (e.g. "You look great with/without makeup!" or "Nice natural look!" or "Your makeup looks lovely!"). ' +
-      'Use both the face data summary and the photo (if provided) for your answer.\n\n' + prompt;
-
+      'Look at the photo and answer directly: does this person have makeup on their face? ' +
+  'You MUST reply in one of these two forms: "Wearing makeup" (if they have makeup) or "Not wearing makeup" (if they have no/minimal makeup). ' +
+  'You can add one very short positive comment after that (under 10 words). Reply in English only.\n\n';
     // 组装 user parts：先文字，若有图则加 inline_data（多模态）
     const userParts = [{ text: textPart }];
     if (image_base64 && typeof image_base64 === 'string' && image_base64.length > 0) {
