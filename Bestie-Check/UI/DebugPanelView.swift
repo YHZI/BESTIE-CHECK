@@ -15,6 +15,9 @@ struct DebugPanelView: View {
     @Binding var showViewFinderScan: Bool  // ViewFinder 扫描线开关
     @Binding var useRGBBackground: Bool  // 背景模式开关
     @State private var isExpanded: Bool = false
+    @State private var testText: String = ""  // 测试文本输入
+    @State private var byteCount: Int = 0  // 字节数量
+    @State private var shouldExpand: Bool = false  // 是否应该展开
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -150,6 +153,114 @@ struct DebugPanelView: View {
                         .cornerRadius(6)
                     }
                     
+                    Divider()
+                        .background(Color.white.opacity(0.3))
+                    
+                    // 展开检测输入框
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Expansion Test (180 bytes)")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                        
+                        // 文本输入框
+                        TextEditor(text: $testText)
+                            .frame(height: 60)
+                            .padding(6)
+                            .background(Color.white.opacity(0.9))
+                            .cornerRadius(6)
+                            .font(.system(size: 12))
+                            .onChange(of: testText) { oldValue, newValue in
+                                updateExpansionCheck(newValue)
+                            }
+                        
+                        // 显示检测结果
+                        HStack(spacing: 8) {
+                            Text("\(byteCount) bytes")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.8))
+                            
+                            Spacer()
+                            
+                            HStack(spacing: 4) {
+                                Image(systemName: shouldExpand ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
+                                Text(shouldExpand ? "EXPAND" : "NO EXPAND")
+                            }
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(shouldExpand ? Color.green.opacity(0.8) : Color.gray.opacity(0.6))
+                            .cornerRadius(4)
+                        }
+                        
+                        // 快捷测试按钮
+                        HStack(spacing: 6) {
+                            Button("Clear") {
+                                testText = ""
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.red.opacity(0.6))
+                            .cornerRadius(4)
+                            
+                            Button("180B") {
+                                testText = String(repeating: "a", count: 180)
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.orange.opacity(0.6))
+                            .cornerRadius(4)
+                            
+                            Button("181B") {
+                                testText = String(repeating: "a", count: 181)
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.green.opacity(0.6))
+                            .cornerRadius(4)
+                            
+                            Button("Emoji") {
+                                testText = "Hello! 😊👍🎉🌟✨💖🚀🔥💯🎨"
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.purple.opacity(0.6))
+                            .cornerRadius(4)
+                        }
+                        
+                        // 注入到气泡按钮
+                        Button(action: {
+                            viewModel.injectTestText(testText, autoHide: false)
+                        }) {
+                            HStack {
+                                Image(systemName: "arrow.right.circle.fill")
+                                Text("Inject to Bubble")
+                            }
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background(Color.blue.opacity(0.8))
+                            .cornerRadius(6)
+                        }
+                        .disabled(testText.isEmpty)
+                        .opacity(testText.isEmpty ? 0.5 : 1.0)
+                    }
+                    
+                    Divider()
+                        .background(Color.white.opacity(0.3))
+                    
                     // FaceDetected 手动切换按钮（用于测试）
                     Button(action: {
                         withAnimation {
@@ -176,6 +287,12 @@ struct DebugPanelView: View {
         }
         .padding(.trailing, 16)
         .padding(.top, 60)
+    }
+    
+    // 更新展开检测
+    private func updateExpansionCheck(_ text: String) {
+        byteCount = text.utf8.count
+        shouldExpand = byteCount > 180
     }
 }
 

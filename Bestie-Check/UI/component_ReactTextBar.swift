@@ -108,13 +108,12 @@ private struct BubbleContent: View {
         isExpanded ? .template2 : .template1
     }
     
-    // 预判文本是否需要展开（基于单词数量）
+    // 预判文本是否需要展开（基于字节数量）
     private func shouldTextExpand(_ text: String) -> Bool {
-        // 计算单词数量：使用空格和换行符分割
-        let words = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
-        let wordCount = words.count
-        let estimatedShouldExpand = wordCount > 20
-        print("📏 Quick estimate: \(wordCount) words, should expand: \(estimatedShouldExpand)")
+        // 计算字节数量：使用UTF-8编码
+        let byteCount = text.utf8.count
+        let estimatedShouldExpand = byteCount > 180
+        print("📏 Quick estimate: \(byteCount) bytes, should expand: \(estimatedShouldExpand)")
         return estimatedShouldExpand
     }
     
