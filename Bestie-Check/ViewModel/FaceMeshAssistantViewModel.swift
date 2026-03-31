@@ -26,16 +26,29 @@ class FaceMeshAssistantViewModel: ObservableObject {
     // MARK: - Private Properties
     private let arFrameProvider = ARFrameProvider()
     private let faceLandmarkerService = FaceLandmarkerService()
-    private let aiClient = AIClient()
+    private let aiClient: AIClient
     
     private var frameTask: Task<Void, Never>?
     private var lastProcessedTimestamp: Int64 = 0
     private var bubbleAutoHideTask: Task<Void, Never>?
     /// 当前「有脸」会话内是否已经请求过 AI；脸消失后重置，实现「有脸只回复一次」
     private var hasRepliedForCurrentFaceSession: Bool = false
+    private var consecutiveFaceFrames: Int = 0
+    private var consecutiveNoFaceFrames: Int = 0
+    private let requiredFaceFrames: Int = 3
+    private let requiredNoFaceFrames: Int = 3
     
     // MARK: - Initialization
     init() {
+        #if DEBUG
+        #if targetEnvironment(simulator)
+        self.aiClient = AIClient(config: .default)
+        #else
+        self.aiClient = AIClient(config: .backendProxy)
+        #endif
+        #else
+        self.aiClient = AIClient(config: .backendProxy)
+        #endif
         startFrameProcessing()
     }
     
@@ -93,24 +106,23 @@ class FaceMeshAssistantViewModel: ObservableObject {
         
         // 2. 提取摘要
         guard let summary = FaceLandmarkerService.extractSummary(from: result, timestampMs: timestampMs) else {
-            hasRepliedForCurrentFaceSession = false
-            await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
+            await setFaceDetectedState(false)
             return
         }
         
-        // 如果没有检测到脸，结束当前会话
+        // 如果没有检测到脸，进入无脸计数逻辑
         if !summary.hasFace {
-            hasRepliedForCurrentFaceSession = false
-            await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
-            if showNoFaceMessage {
-                updateBubble(text: "No face detected", autoHide: true)
-            }
+            await setFaceDetectedState(false)
             return
         }
         
-        // 检测到人脸，更新状态
-        await FaceDetectionProvider.shared.updateFaceDetection(detected: true)
-        
+        // 检测到人脸，进入有脸计数逻辑
+        await setFaceDetectedState(true)
+
+        if consecutiveFaceFrames < requiredFaceFrames {
+            return
+        }
+
         // 本「有脸」会话内已经请求过 AI → 不再重复请求，保持当前气泡
         if hasRepliedForCurrentFaceSession {
             return
@@ -167,12 +179,36 @@ class FaceMeshAssistantViewModel: ObservableObject {
     }
     
     // MARK: - Detection Reset
+    private func setFaceDetectedState(_ detected: Bool) async {
+        if detected {
+            consecutiveFaceFrames += 1
+            consecutiveNoFaceFrames = 0
+
+            if consecutiveFaceFrames >= requiredFaceFrames {
+                await FaceDetectionProvider.shared.updateFaceDetection(detected: true)
+            }
+        } else {
+            consecutiveNoFaceFrames += 1
+            consecutiveFaceFrames = 0
+
+            if consecutiveNoFaceFrames >= requiredNoFaceFrames {
+                hasRepliedForCurrentFaceSession = false
+                await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
+                if showNoFaceMessage {
+                    updateBubble(text: "No face detected", autoHide: true)
+                }
+            }
+        }
+    }
+
     /// 重置后台检测状态
     func resetDetection() {
         print("🔄 ViewModel: Resetting detection state...")
         
         lastProcessedTimestamp = 0
-        hasRepliedForCurrentFaceSession = false  // 允许下次有脸时再请求一次 AI
+        hasRepliedForCurrentFaceSession = false
+        consecutiveFaceFrames = 0
+        consecutiveNoFaceFrames = 0
         bubbleText = ""
         isBubbleVisible = false
         bubbleAutoHideTask?.cancel()
