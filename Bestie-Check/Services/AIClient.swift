@@ -57,7 +57,7 @@ class AIClient {
         // 例如：return "http://192.168.1.100:8080"
         // 查看电脑 IP：macOS 终端运行 `ipconfig getifaddr en0` 或系统设置 → 网络 → Wi-Fi 详情
         //return "http://localhost:8080"  // ⚠️ 真机调试时请改为 http://<你电脑IP>:8080
-        return "http://192.168.1.113:8080"
+        return "http://192.168.0.12:8080"
         #endif
         #else
         // Release 模式：使用生产环境的 HTTPS 地址
@@ -71,7 +71,7 @@ class AIClient {
     private let session: URLSession
     
     // MARK: - Initialization
-    init(config: Config = .default) {
+    init(config: Config = .backendProxy) {
         self.config = config
         
         let sessionConfig = URLSessionConfiguration.default
@@ -201,5 +201,14 @@ extension AIClient {
         }
         
         return imageData.base64EncodedString()
+    }
+
+    static func pixelBufferToUIImage(_ pixelBuffer: CVPixelBuffer) -> UIImage? {
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage)
     }
 }

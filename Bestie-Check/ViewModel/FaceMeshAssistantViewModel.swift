@@ -9,6 +9,7 @@ import SwiftUI
 import ARKit
 import RealityKit
 import Combine
+import UIKit
 
 @MainActor
 class FaceMeshAssistantViewModel: ObservableObject {
@@ -18,6 +19,10 @@ class FaceMeshAssistantViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
+    // MARK: - Share
+    /// 用户可分享的妆容照片（使用“发给 AI 的那张”）
+    @Published var lastSharedImage: UIImage?
+    
     // MARK: - Debug Settings
     @Published var throttleIntervalMs: Int = 200  // 默认 5fps (1000/200)
     @Published var uploadFullImage: Bool = true  // 默认上传人脸图给 AI，与 landmark 数据一起获得更好回答
@@ -26,7 +31,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
     // MARK: - Private Properties
     private let arFrameProvider = ARFrameProvider()
     private let faceLandmarkerService = FaceLandmarkerService()
-    private let aiClient: AIClient
+    private let aiClient = AIClient(config: .backendProxy)
     
     private var frameTask: Task<Void, Never>?
     private var lastProcessedTimestamp: Int64 = 0
@@ -40,15 +45,6 @@ class FaceMeshAssistantViewModel: ObservableObject {
     
     // MARK: - Initialization
     init() {
-        #if DEBUG
-        #if targetEnvironment(simulator)
-        self.aiClient = AIClient(config: .default)
-        #else
-        self.aiClient = AIClient(config: .backendProxy)
-        #endif
-        #else
-        self.aiClient = AIClient(config: .backendProxy)
-        #endif
         startFrameProcessing()
     }
     
@@ -135,6 +131,11 @@ class FaceMeshAssistantViewModel: ObservableObject {
         
         do {
             let imageBase64 = uploadFullImage ? AIClient.pixelBufferToBase64(pixelBuffer) : nil
+            if uploadFullImage {
+                lastSharedImage = AIClient.pixelBufferToUIImage(pixelBuffer)
+            } else {
+                lastSharedImage = nil
+            }
             let aiReply = try await aiClient.getAIReply(
                 summary: summary,
                 includeImage: uploadFullImage,
@@ -211,6 +212,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
         consecutiveNoFaceFrames = 0
         bubbleText = ""
         isBubbleVisible = false
+        lastSharedImage = nil
         bubbleAutoHideTask?.cancel()
         errorMessage = nil
         isLoading = false

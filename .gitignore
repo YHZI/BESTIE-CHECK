@@ -28,3 +28,9 @@ build/
 
 # Other
 *.xcuserstate
+
+# Local secrets
+backend/.env
+
+# Backend dependencies
+backend/node_modules/
