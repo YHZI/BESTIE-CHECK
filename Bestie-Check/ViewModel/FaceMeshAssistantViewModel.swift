@@ -232,4 +232,10 @@ class FaceMeshAssistantViewModel: ObservableObject {
     func triggerTestBubble() {
         updateBubble(text: "Sorry! No face detected in AR scan.", autoHide: false)
     }
+    
+    // MARK: - Debug Test Bubble
+    /// 用于 Debug Panel 测试，直接注入文本到气泡（不影响业务逻辑）
+    func injectTestText(_ text: String, autoHide: Bool = false) {
+        updateBubble(text: text, autoHide: autoHide)
+    }
 }
