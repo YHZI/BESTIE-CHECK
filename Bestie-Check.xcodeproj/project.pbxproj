@@ -317,6 +317,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs camera access for AR face tracking and analysis.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "This app needs access to your local network to connect to the Bestie-Check backend running on your computer.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app may need microphone access for AR features.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Choose a photo to include in your share image when the camera is not available.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -374,6 +375,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs camera access for AR face tracking and analysis.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "This app needs access to your local network to connect to the Bestie-Check backend running on your computer.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app may need microphone access for AR features.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Choose a photo to include in your share image when the camera is not available.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

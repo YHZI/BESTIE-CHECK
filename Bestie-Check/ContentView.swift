@@ -26,8 +26,10 @@ struct ContentView: View {
     // 背景模式：false = Camera, true = RGB Colors
     @State private var useRGBBackground: Bool = false
     
-    // Share sheet
+    /// User takes a new photo for share (not the first face frame).
+    @State private var isShareCameraPresented: Bool = false
     @State private var isShareSheetPresented: Bool = false
+    @State private var shareActivityItems: [Any] = []
     
     private func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
         let safeReply = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -140,12 +142,6 @@ struct ContentView: View {
         }
     }
     
-    private func makeShareItems() -> [Any] {
-        let replyText = viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let photo = viewModel.lastSharedImage else { return [] }
-        let image = makeShareImage(photo: photo, replyText: replyText)
-        return [image]
-    }
     
     // 测试文本内容
     var testText: String {
@@ -247,9 +243,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     )
                         .frame(height: 120)  // 与气泡高度一致
                     
-                    // Share（右上角）
+                    // Share（右上角）：先打开相机拍照，再合成分享图
                     Button {
-                        isShareSheetPresented = true
+                        isShareCameraPresented = true
                     } label: {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 14, weight: .semibold))
@@ -260,8 +256,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     }
                     .padding(.top, 12)
                     .padding(.trailing, 12)
-                    // Must have BOTH photo and reply to generate a share image
-                    .disabled(viewModel.lastSharedImage == nil || viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding(.top, 60)
                 .padding(.horizontal, 20)
@@ -269,8 +264,22 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 Spacer()
             }
             .zIndex(1)  // 固定 zIndex，不再动态提升
-            .sheet(isPresented: $isShareSheetPresented) {
-                ShareSheet(activityItems: makeShareItems())
+            .fullScreenCover(isPresented: $isShareCameraPresented) {
+                ShareCameraPicker { image in
+                    isShareCameraPresented = false
+                    let reply = viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard let image, !reply.isEmpty else { return }
+                    shareActivityItems = [makeShareImage(photo: image, replyText: reply)]
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        isShareSheetPresented = true
+                    }
+                }
+                .ignoresSafeArea()
+            }
+            .sheet(isPresented: $isShareSheetPresented, onDismiss: {
+                shareActivityItems = []
+            }) {
+                ShareSheet(activityItems: shareActivityItems)
             }
             
             // 左上角返回按钮（智能模式：自动处理 ReactTextBar 状态）
