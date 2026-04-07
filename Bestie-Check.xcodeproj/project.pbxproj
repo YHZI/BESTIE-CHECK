@@ -17,9 +17,22 @@
 		7BB608F61EE86BD0415C2453 /* Pods-Bestie-Check.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Bestie-Check.release.xcconfig"; path = "Target Support Files/Pods-Bestie-Check/Pods-Bestie-Check.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D725A8DC2F84DF350004FF64 /* Exceptions for "Bestie-Check" folder in "Bestie-Check" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 270C25632F292F6D001EF7E3 /* Bestie-Check */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		270C25662F292F6D001EF7E3 /* Bestie-Check */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D725A8DC2F84DF350004FF64 /* Exceptions for "Bestie-Check" folder in "Bestie-Check" target */,
+			);
 			path = "Bestie-Check";
 			sourceTree = "<group>";
 		};
@@ -313,6 +326,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Bestie-Check/Info.plist";
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs camera access for AR face tracking and analysis.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "This app needs access to your local network to connect to the Bestie-Check backend running on your computer.";
@@ -372,6 +386,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Bestie-Check/Info.plist";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs camera access for AR face tracking and analysis.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "This app needs access to your local network to connect to the Bestie-Check backend running on your computer.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app may need microphone access for AR features.";

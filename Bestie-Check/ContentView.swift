@@ -56,6 +56,37 @@ struct ContentView: View {
             let gradientEnd = CGPoint(x: canvasSize.width / 2, y: canvasSize.height)
             ctx.cgContext.drawLinearGradient(gradient, start: gradientStart, end: gradientEnd, options: [])
             
+            // SLOGAN
+            let sloganTop = "Find your beauty on"
+            let sloganBottom = "GOSHASHA"
+
+            // paragraph（右对齐）
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .right
+
+            // 上面那行（小字）
+            let attrTop = NSAttributedString(string: sloganTop, attributes: [
+                .font: UIFont(name: "Playwrite IE", size: 36) ?? UIFont.systemFont(ofSize: 36),
+                .foregroundColor: UIColor.white.withAlphaComponent(0.95),
+                .paragraphStyle: paragraphStyle
+            ])
+
+            // 下面品牌名（大字）
+            let attrBottom = NSAttributedString(string: sloganBottom, attributes: [
+                .font: UIFont(name: "Playwrite IE", size: 64) ?? UIFont.systemFont(ofSize: 64),
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: paragraphStyle
+            ])
+
+            // 位置（右上角）
+            let rightMargin: CGFloat = 80
+            let topMargin: CGFloat = 120
+            let width: CGFloat = canvasSize.width - rightMargin * 2
+
+            // 画文字
+            attrTop.draw(in: CGRect(x: rightMargin, y: topMargin, width: width, height: 50))
+            attrBottom.draw(in: CGRect(x: rightMargin, y: topMargin + 48, width: width, height: 80))
+            
             // Text card
             let padding: CGFloat = 56
             let cardWidth = canvasSize.width - padding * 2
