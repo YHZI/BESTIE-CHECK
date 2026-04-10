@@ -9,6 +9,7 @@ import SwiftUI
 import ARKit
 import RealityKit
 import Combine
+import UIKit
 
 @MainActor
 class FaceMeshAssistantViewModel: ObservableObject {
@@ -18,6 +19,10 @@ class FaceMeshAssistantViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
+    // MARK: - Share
+    /// 用户可分享的妆容照片（使用“发给 AI 的那张”）
+    @Published var lastSharedImage: UIImage?
+    
     // MARK: - Debug Settings
     @Published var throttleIntervalMs: Int = 200  // 默认 5fps (1000/200)
     @Published var uploadFullImage: Bool = true  // 默认上传人脸图给 AI，与 landmark 数据一起获得更好回答
@@ -26,7 +31,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
     // MARK: - Private Properties
     private let arFrameProvider = ARFrameProvider()
     private let faceLandmarkerService = FaceLandmarkerService()
-    private let aiClient: AIClient
+    private let aiClient = AIClient(config: .backendProxy)
     
     private var frameTask: Task<Void, Never>?
     private var lastProcessedTimestamp: Int64 = 0
@@ -37,18 +42,13 @@ class FaceMeshAssistantViewModel: ObservableObject {
     private var consecutiveNoFaceFrames: Int = 0
     private let requiredFaceFrames: Int = 3
     private let requiredNoFaceFrames: Int = 3
+    /// 稳定有脸后，再等这么久才向 AI 发送（避免第一帧数据不完整）
+    private let aiRequestDelayAfterStableFaceMs: Int64 = 1000
+    /// 首次达到「稳定有脸」时的墙钟时间（ms）；人脸离开后清零
+    private var stableFaceAnchorWallMs: Int64?
     
     // MARK: - Initialization
     init() {
-        #if DEBUG
-        #if targetEnvironment(simulator)
-        self.aiClient = AIClient(config: .default)
-        #else
-        self.aiClient = AIClient(config: .backendProxy)
-        #endif
-        #else
-        self.aiClient = AIClient(config: .backendProxy)
-        #endif
         startFrameProcessing()
     }
     
@@ -97,6 +97,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
         guard let result = try? await faceLandmarkerService.processFrame(pixelBuffer, timestampMs: timestampMs) else {
             // 推理失败或未检测到人脸 → 结束当前「有脸」会话，下次有脸会重新请求 AI
             hasRepliedForCurrentFaceSession = false
+            stableFaceAnchorWallMs = nil
             await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
             if showNoFaceMessage {
                 updateBubble(text: "No face detected", autoHide: true)
@@ -123,18 +124,31 @@ class FaceMeshAssistantViewModel: ObservableObject {
             return
         }
 
+        let nowWallMs = Int64(Date().timeIntervalSince1970 * 1000)
+        if stableFaceAnchorWallMs == nil {
+            stableFaceAnchorWallMs = nowWallMs
+        }
+        guard let anchor = stableFaceAnchorWallMs, nowWallMs - anchor >= aiRequestDelayAfterStableFaceMs else {
+            return
+        }
+
         // 本「有脸」会话内已经请求过 AI → 不再重复请求，保持当前气泡
         if hasRepliedForCurrentFaceSession {
             return
         }
         
-        // 3. 本会话内首次有脸，调用 AI 一次
+        // 3. 稳定有脸满 1 秒后，用当前帧调用 AI 一次
         hasRepliedForCurrentFaceSession = true
         isLoading = true
         errorMessage = nil
         
         do {
             let imageBase64 = uploadFullImage ? AIClient.pixelBufferToBase64(pixelBuffer) : nil
+            if uploadFullImage {
+                lastSharedImage = AIClient.pixelBufferToUIImage(pixelBuffer)
+            } else {
+                lastSharedImage = nil
+            }
             let aiReply = try await aiClient.getAIReply(
                 summary: summary,
                 includeImage: uploadFullImage,
@@ -190,6 +204,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
         } else {
             consecutiveNoFaceFrames += 1
             consecutiveFaceFrames = 0
+            stableFaceAnchorWallMs = nil
 
             if consecutiveNoFaceFrames >= requiredNoFaceFrames {
                 hasRepliedForCurrentFaceSession = false
@@ -207,10 +222,12 @@ class FaceMeshAssistantViewModel: ObservableObject {
         
         lastProcessedTimestamp = 0
         hasRepliedForCurrentFaceSession = false
+        stableFaceAnchorWallMs = nil
         consecutiveFaceFrames = 0
         consecutiveNoFaceFrames = 0
         bubbleText = ""
         isBubbleVisible = false
+        lastSharedImage = nil
         bubbleAutoHideTask?.cancel()
         errorMessage = nil
         isLoading = false

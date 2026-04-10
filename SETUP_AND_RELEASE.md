@@ -1,6 +1,6 @@
 # Bestie-Check 配置与发布指南
 
-本文档说明如何配置和测试 Bestie-Check 的后端代理服务，以及如何准备正式发布。
+本文档说明如何配置和测试 Bestie-Check 的后端代理服务（Gemini），以及如何准备正式发布。
 
 ---
 
@@ -15,9 +15,9 @@ cd backend
 # 复制环境变量模板
 cp .env.example .env
 
-# 编辑 .env 文件，填入你的 OpenAI API Key
-# 打开 .env 文件，将 OPENAI_API_KEY 改为你的实际 API Key
-# 例如：OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
+# 编辑 .env 文件，填入你的 Gemini API Key
+# 打开 .env 文件，将 GEMINI_API_KEY 改为你的实际 API Key
+# 例如：GEMINI_API_KEY=AIzaSyxxxxxxxxxxxxx
 
 # 安装依赖
 npm install
@@ -74,7 +74,7 @@ return "http://192.168.1.100:8080"  // ⚠️ 改为你的电脑 IP
 
 **只有在以下情况才需要重新配置：**
 - 换了电脑或换了 WiFi 网络（需要更新 IP 地址）
-- 更换了 OpenAI API Key（需要更新 `.env` 文件）
+- 更换了 Gemini API Key（需要更新 `.env` 文件）
 - 第一次在新电脑上设置
 
 ---
@@ -132,9 +132,9 @@ ipconfig
 3. 创建新项目 → 「Deploy from GitHub repo」
 4. 选择你的仓库
 5. 在「Variables」中添加环境变量：
-   - `OPENAI_API_KEY`: 你的 API Key
+   - `GEMINI_API_KEY`: 你的 API Key
    - `PORT`: `8080`（Railway 会自动分配端口，但可以设置）
-   - `OPENAI_MODEL`: `gpt-4o-mini`（可选）
+   - `GEMINI_MODEL`: `gemini-1.5-flash`（可选）
 6. Railway 会自动部署并提供 HTTPS URL，例如：`https://bestie-check-backend.railway.app`
 
 #### 选项 B：Vercel（适合 Serverless）
@@ -142,14 +142,14 @@ ipconfig
 1. 安装 Vercel CLI：`npm i -g vercel`
 2. 在 `backend/` 目录运行：`vercel`
 3. 按照提示配置
-4. 在 Vercel Dashboard 添加环境变量 `OPENAI_API_KEY`
+4. 在 Vercel Dashboard 添加环境变量 `GEMINI_API_KEY`
 5. 注意：Vercel 是 Serverless，需要调整代码结构（可能需要使用 Vercel Functions）
 
 #### 选项 C：自建服务器（VPS）
 
 1. 在服务器上安装 Node.js（>= 18）
 2. 克隆代码到服务器
-3. 配置 `.env` 文件
+3. 配置 `.env` 文件（包含 `GEMINI_API_KEY`）
 4. 使用 PM2 或 systemd 运行服务：
    ```bash
    npm install -g pm2
@@ -185,7 +185,7 @@ return "https://bestie-check-backend.railway.app"  // ⚠️ 改为你的实际�
 ## 🔒 安全注意事项
 
 1. **不要提交 API Key**：
-   - `.env` 文件已在 `.gitignore` 中
+   - 确保 `.env` 文件在 `.gitignore` 中（例如 `backend/.env`）
    - 确保不要将 API Key 硬编码到代码中
 
 2. **生产环境**：

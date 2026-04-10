@@ -1,6 +1,6 @@
-# Bestie-Check Backend Proxy
+# Bestie-Check Backend Proxy (Gemini)
 
-这是一个 Node.js + Express 后端代理服务，用于 Bestie-Check iOS App。它将人脸分析数据转发到 OpenAI API，并返回简短的评价文本。
+这是一个 Node.js + Express 后端代理服务，用于 Bestie-Check iOS App。它将人脸分析数据转发到 Gemini API，并返回简短的评价文本。
 
 ## 快速开始
 
@@ -20,7 +20,7 @@ cp .env.example .env
 然后编辑 `.env` 文件，填入你的 OpenAI API Key：
 
 ```
-OPENAI_API_KEY=sk-your-actual-api-key-here
+GEMINI_API_KEY=your-actual-api-key-here
 ```
 
 **重要：** `.env` 文件不会被提交到 git，请确保不要泄露你的 API Key。
@@ -100,8 +100,8 @@ iOS 模拟器可以直接使用 `http://localhost:8080` 连接本地后端。
 ## 环境变量说明
 
 - `PORT`: 服务器端口（默认：8080）
-- `OPENAI_API_KEY`: OpenAI API Key（必需）
-- `OPENAI_MODEL`: OpenAI 模型名称（可选，默认：gpt-4o-mini）
+- `GEMINI_API_KEY`: Gemini API Key（必需）
+- `GEMINI_MODEL`: Gemini 模型名称（可选，默认：gemini-1.5-flash）
 
 ## 注意事项
 
