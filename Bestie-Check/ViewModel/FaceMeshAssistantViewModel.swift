@@ -18,6 +18,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
     @Published var isBubbleVisible: Bool = false
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var shouldExpandBubble: Bool = false  // 控制气泡是否应该展开（仅AI响应时为true）
     
     // MARK: - Share
     /// 用户可分享的妆容照片（使用“发给 AI 的那张”）
@@ -100,7 +101,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
             stableFaceAnchorWallMs = nil
             await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
             if showNoFaceMessage {
-                updateBubble(text: "No face detected", autoHide: true)
+                updateBubble(text: "No face detected", autoHide: true, isAIResponse: false)
             }
             return
         }
@@ -154,7 +155,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
                 includeImage: uploadFullImage,
                 imageBase64: imageBase64
             )
-            updateBubble(text: aiReply, autoHide: true)
+            updateBubble(text: aiReply, autoHide: true, isAIResponse: true)
             isLoading = false
         } catch {
             // 请求失败时允许下次有脸再试
@@ -166,9 +167,12 @@ class FaceMeshAssistantViewModel: ObservableObject {
     }
     
     // MARK: - Bubble Management
-    private func updateBubble(text: String, autoHide: Bool = true) {
+    private func updateBubble(text: String, autoHide: Bool = true, isAIResponse: Bool = false) {
         bubbleText = text
         isBubbleVisible = true
+        
+        // 只有AI响应才展开气泡
+        shouldExpandBubble = isAIResponse
         
         // 取消之前的自动隐藏任务
         bubbleAutoHideTask?.cancel()
@@ -210,7 +214,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
                 hasRepliedForCurrentFaceSession = false
                 await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
                 if showNoFaceMessage {
-                    updateBubble(text: "No face detected", autoHide: true)
+                    updateBubble(text: "No face detected", autoHide: true, isAIResponse: false)
                 }
             }
         }
@@ -227,6 +231,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
         consecutiveNoFaceFrames = 0
         bubbleText = ""
         isBubbleVisible = false
+        shouldExpandBubble = false  // 重置展开信号
         lastSharedImage = nil
         bubbleAutoHideTask?.cancel()
         errorMessage = nil
@@ -241,18 +246,18 @@ class FaceMeshAssistantViewModel: ObservableObject {
         // 注意：这里简化实现，实际应该从 ARFrameProvider 获取最新帧
         Task {
             // TODO: 获取最新帧并处理
-            updateBubble(text: "Manual analysis triggered (feature coming soon)", autoHide: true)
+            updateBubble(text: "Manual analysis triggered (feature coming soon)", autoHide: true, isAIResponse: false)
         }
     }
     
     // MARK: - Test Trigger
     func triggerTestBubble() {
-        updateBubble(text: "Sorry! No face detected in AR scan.", autoHide: false)
+        updateBubble(text: "Sorry! No face detected in AR scan.", autoHide: false, isAIResponse: false)
     }
     
     // MARK: - Debug Test Bubble
     /// 用于 Debug Panel 测试，直接注入文本到气泡（不影响业务逻辑）
-    func injectTestText(_ text: String, autoHide: Bool = false) {
-        updateBubble(text: text, autoHide: autoHide)
+    func injectTestText(_ text: String, autoHide: Bool = false, isAIResponse: Bool = true) {
+        updateBubble(text: text, autoHide: autoHide, isAIResponse: isAIResponse)
     }
 }

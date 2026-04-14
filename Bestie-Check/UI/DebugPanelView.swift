@@ -15,9 +15,11 @@ struct DebugPanelView: View {
     @Binding var showViewFinderScan: Bool  // ViewFinder 扫描线开关
     @Binding var useRGBBackground: Bool  // 背景模式开关
     @State private var isExpanded: Bool = false
-    @State private var testText: String = ""  // 测试文本输入
-    @State private var byteCount: Int = 0  // 字节数量
-    @State private var shouldExpand: Bool = false  // 是否应该展开
+    @State private var testText: String = ""
+    @State private var byteCount: Int = 0
+    @State private var shouldExpand: Bool = false
+    @State private var previewShareImage: UIImage? = nil
+    @State private var savedToPhotos: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -156,9 +158,9 @@ struct DebugPanelView: View {
                     Divider()
                         .background(Color.white.opacity(0.3))
                     
-                    // 展开检测输入框
+                    // 气泡测试输入框
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Expansion Test (180 bytes)")
+                        Text("Bubble Inject Test")
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
@@ -174,7 +176,7 @@ struct DebugPanelView: View {
                                 updateExpansionCheck(newValue)
                             }
                         
-                        // 显示检测结果
+                        // 显示字节数（仅参考）
                         HStack(spacing: 8) {
                             Text("\(byteCount) bytes")
                                 .font(.caption2)
@@ -183,15 +185,15 @@ struct DebugPanelView: View {
                             Spacer()
                             
                             HStack(spacing: 4) {
-                                Image(systemName: shouldExpand ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
-                                Text(shouldExpand ? "EXPAND" : "NO EXPAND")
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                Text("Inject → Expand")
                             }
                             .font(.caption2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(shouldExpand ? Color.green.opacity(0.8) : Color.gray.opacity(0.6))
+                            .background(Color.blue.opacity(0.6))
                             .cornerRadius(4)
                         }
                         
@@ -240,7 +242,7 @@ struct DebugPanelView: View {
                         
                         // 注入到气泡按钮
                         Button(action: {
-                            viewModel.injectTestText(testText, autoHide: false)
+                            viewModel.injectTestText(testText, autoHide: false, isAIResponse: true)
                         }) {
                             HStack {
                                 Image(systemName: "arrow.right.circle.fill")
@@ -278,6 +280,62 @@ struct DebugPanelView: View {
                         .background(faceDetectionProvider.faceDetected ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
                         .cornerRadius(6)
                     }
+
+                    Divider()
+                        .background(Color.white.opacity(0.3))
+
+                    // 分享图预览（占位背景，无需相机）
+                    VStack(spacing: 6) {
+                        // 保存到相册（最直观的测试方式）
+                        Button(action: {
+                            let reply = viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let img = makeShareImagePreview(
+                                replyText: reply.isEmpty ? "（Test Message）" : reply
+                            )
+                            previewShareImage = img
+                            UIImageWriteToSavedPhotosAlbum(img, nil, nil, nil)
+                            savedToPhotos = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                savedToPhotos = false
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: savedToPhotos ? "checkmark.circle.fill" : "photo.badge.arrow.down")
+                                Text(savedToPhotos ? "Saved to Photos!" : "Preview → Save to Photos")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background(savedToPhotos ? Color.green.opacity(0.8) : Color.indigo.opacity(0.7))
+                            .cornerRadius(6)
+                        }
+
+                        // 通过系统分享面板查看
+                        Button(action: {
+                            let reply = viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            previewShareImage = makeShareImagePreview(
+                                replyText: reply.isEmpty ? "（Test Message）" : reply
+                            )
+                        }) {
+                            HStack {
+                                Image(systemName: "square.and.arrow.up")
+                                Text("Preview → Share Sheet")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background(Color.purple.opacity(0.7))
+                            .cornerRadius(6)
+                        }
+                        .sheet(item: Binding(
+                            get: { previewShareImage.map { IdentifiableImage(image: $0) } },
+                            set: { if $0 == nil { previewShareImage = nil } }
+                        )) { item in
+                            ShareSheet(activityItems: [item.image])
+                        }
+                    }
                 }
                 .padding(12)
                 .background(Color.black.opacity(0.7))
@@ -314,4 +372,11 @@ struct DebugPanelView: View {
     }
     
     return PreviewWrapper()
+}
+
+// MARK: - Helpers
+
+private struct IdentifiableImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
 }
