@@ -82,27 +82,28 @@ func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
         ctx.fill(bounds)
 
         // ── 5. 品牌 header（Logo + "GOSHSHA"，水平居中）──────────────────
-        let headerH:  CGFloat = ptSize.height * 0.10
-        let logoSize: CGFloat = headerH * 0.80   // 增大 logo 尺寸，让彩色区域更突出
+        let headerH:  CGFloat = ptSize.height * 0.13
+        let logoSize: CGFloat = headerH * 0.70 * 1.10   // 放大 10%
         let brandGap: CGFloat = logoSize * 0.25
-        let centerY:  CGFloat = headerH / 2
+        let centerY:  CGFloat = headerH / 2 + headerH * 0.20   // 下移 20%
 
-        let brandFont = playwriteFont(size: logoSize * 0.75)
+        let brandFont = playwriteFont(size: ptSize.height * 0.10 * 0.38)  // 字体大小锁定，不随 headerH 变化
         let brandText = "GOSHSHA" as NSString
         let brandAttrs: [NSAttributedString.Key: Any] = [
             .font: brandFont,
             .foregroundColor: UIColor.black.withAlphaComponent(0.85),
-            .kern: logoSize * 0.08
         ]
         let brandTextSize = brandText.size(withAttributes: brandAttrs)
         let totalW = logoSize + brandGap + brandTextSize.width
         let startX = (ptSize.width - totalW) / 2
 
         if let logoImage = UIImage(named: "GoshshaIcon") {
+            let logoW = logoSize
+            let logoH = logoSize * 1.31
             logoImage.draw(in: CGRect(
                 x: startX,
-                y: centerY - logoSize / 2,
-                width: logoSize, height: logoSize
+                y: centerY - logoH / 2,
+                width: logoW, height: logoH
             ))
         }
         brandText.draw(
