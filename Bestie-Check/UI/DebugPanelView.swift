@@ -20,6 +20,13 @@ struct DebugPanelView: View {
     @State private var shouldExpand: Bool = false
     @State private var previewShareImage: UIImage? = nil
     @State private var savedToPhotos: Bool = false
+    @State private var showPreview = false
+    @State private var previewImageForUI: UIImage?
+    
+    private func updateExpansionCheck(_ text: String) {
+        byteCount = text.utf8.count
+        shouldExpand = byteCount > 180
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -280,47 +287,42 @@ struct DebugPanelView: View {
                         .background(faceDetectionProvider.faceDetected ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
                         .cornerRadius(6)
                     }
-
+                    
                     Divider()
                         .background(Color.white.opacity(0.3))
-
+                    
                     // 分享图预览（占位背景，无需相机）
                     VStack(spacing: 6) {
-                        // 保存到相册（最直观的测试方式）
+                        // 👉 Debug 进入 SharePreviewView（替代 Save to Photos）
                         Button(action: {
-                            let reply = viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            let img = makeShareImagePreview(
-                                replyText: reply.isEmpty ? "（Test Message）" : reply
-                            )
-                            previewShareImage = img
-                            UIImageWriteToSavedPhotosAlbum(img, nil, nil, nil)
-                            savedToPhotos = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                savedToPhotos = false
-                            }
+                            print("🔥 BUTTON CLICKED")
+                            
+                            // 使用真实的 AI 反馈文本或测试文本
+                            let testText = "这是一个测试的 AI 反馈文本，用于展示分享预览界面的效果。"
+                            
+                            showPreview = true
                         }) {
                             HStack {
-                                Image(systemName: savedToPhotos ? "checkmark.circle.fill" : "photo.badge.arrow.down")
-                                Text(savedToPhotos ? "Saved to Photos!" : "Preview → Save to Photos")
+                                Image(systemName: "eye")
+                                Text("Preview → Open UI")
                             }
                             .font(.caption)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(8)
-                            .background(savedToPhotos ? Color.green.opacity(0.8) : Color.indigo.opacity(0.7))
+                            .background(Color.green.opacity(0.7))
                             .cornerRadius(6)
                         }
-
+                        
                         // 通过系统分享面板查看
                         Button(action: {
                             let reply = viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            previewShareImage = makeShareImagePreview(
-                                replyText: reply.isEmpty ? "（Test Message）" : reply
-                            )
+                            
+                            showPreview = true
                         }) {
                             HStack {
-                                Image(systemName: "square.and.arrow.up")
-                                Text("Preview → Share Sheet")
+                                Image(systemName: "eye.fill")
+                                Text("Preview → Open UI (Alt)")
                             }
                             .font(.caption)
                             .foregroundColor(.white)
@@ -329,28 +331,28 @@ struct DebugPanelView: View {
                             .background(Color.purple.opacity(0.7))
                             .cornerRadius(6)
                         }
-                        .sheet(item: Binding(
-                            get: { previewShareImage.map { IdentifiableImage(image: $0) } },
-                            set: { if $0 == nil { previewShareImage = nil } }
-                        )) { item in
-                            ShareSheet(activityItems: [item.image])
-                        }
+                    }
+                    
+                    /// 👉 打开 Preview 页面
+                    .fullScreenCover(isPresented: $showPreview) {
+                        SharePreviewView(
+                            selfieImage: UIImage(systemName: "person.fill"),  // 占位图像
+                            aiReplyText: viewModel.bubbleText.isEmpty ? "测试 AI 反馈文本" : viewModel.bubbleText,  // 使用 ViewModel 的文本
+                            onRetake: {
+                                // 重新拍照的逻辑
+                                print("重新拍照")
+                                showPreview = false
+                            },
+                            onDismiss: {
+                                // 关闭预览的逻辑
+                                print("关闭预览")
+                                showPreview = false
+                            }
+                        )
                     }
                 }
-                .padding(12)
-                .background(Color.black.opacity(0.7))
-                .cornerRadius(12)
-                .transition(.opacity.combined(with: .scale))
             }
         }
-        .padding(.trailing, 16)
-        .padding(.top, 60)
-    }
-    
-    // 更新展开检测
-    private func updateExpansionCheck(_ text: String) {
-        byteCount = text.utf8.count
-        shouldExpand = byteCount > 180
     }
 }
 
@@ -367,7 +369,7 @@ struct DebugPanelView: View {
                 showViewFinderScan: $showViewFinderScan,
                 useRGBBackground: $useRGBBackground
             )
-                .background(Color.black)
+            .background(Color.black)
         }
     }
     
@@ -375,8 +377,8 @@ struct DebugPanelView: View {
 }
 
 // MARK: - Helpers
-
-private struct IdentifiableImage: Identifiable {
+struct IdentifiableImage: Identifiable {
     let id = UUID()
     let image: UIImage
 }
+

@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-// MARK: - BackButton
+/// MARK: - BackButton
 /// 返回按钮：白色圆形背景（直径22）+ 中心的返回箭头符号
 /// 具有智能功能：根据 ReactTextBar 展开状态自动处理重置逻辑
 struct BackButton: View {
@@ -76,8 +76,7 @@ struct BackButton: View {
                 }
         )
     }
-    
-    // MARK: - 智能处理函数
+
     /// 处理按钮点击，根据 ReactTextBar 状态自动执行相应操作
     private func handleButtonTap() {
         // 检查是否启用智能模式
