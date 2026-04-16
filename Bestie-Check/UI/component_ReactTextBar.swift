@@ -23,8 +23,11 @@ struct ReactTextBarWithCircle: View {
     var titleColor: Color = .primary
     var textColor: Color = .secondary
     @Binding var isExpanded: Bool  // 添加绑定来暴露展开状态
+    @Binding var shouldExpand: Bool  // 控制是否应该展开（由父组件控制）
     var showBackButton: Bool = false  // 是否显示返回按钮
     var onBackTapped: (() -> Void)?  // 返回按钮回调
+    var shareEnabled: Bool = false   // Share 按钮是否可用
+    var onShareTapped: (() -> Void)? // Share 按钮回调
     
     var body: some View {
         HStack {
@@ -35,8 +38,11 @@ struct ReactTextBarWithCircle: View {
                 titleColor: titleColor,
                 textColor: textColor,
                 isExpanded: $isExpanded,
+                shouldExpand: $shouldExpand,
                 showBackButton: showBackButton,
-                onBackTapped: onBackTapped
+                onBackTapped: onBackTapped,
+                shareEnabled: shareEnabled,
+                onShareTapped: onShareTapped
             )
             .onChange(of: text) { oldValue, newValue in
                 print("📝 ReactTextBarWithCircle: text changed")
@@ -58,6 +64,7 @@ struct ReactTextBar: View {
     var showBackButton: Bool = false  // 是否显示返回按钮
     var onBackTapped: (() -> Void)?  // 返回按钮回调
     @State private var isExpandedLocal: Bool = false
+    @State private var shouldExpandLocal: Bool = false  // 兼容用，不触发展开
     
     var body: some View {
         BubbleContent(
@@ -66,6 +73,7 @@ struct ReactTextBar: View {
             titleColor: titleColor,
             textColor: textColor,
             isExpanded: $isExpandedLocal,
+            shouldExpand: $shouldExpandLocal,
             showBackButton: showBackButton,
             onBackTapped: onBackTapped
         )
@@ -87,8 +95,14 @@ private struct BubbleContent: View {
     var titleColor: Color = .primary
     var textColor: Color = .secondary
     @Binding var isExpanded: Bool
+    @Binding var shouldExpand: Bool  // 父组件控制是否应该展开
     var showBackButton: Bool = false
     var onBackTapped: (() -> Void)?
+    var shareEnabled: Bool = false   // Share 按钮是否可用
+    var onShareTapped: (() -> Void)? // Share 按钮回调
+    
+    /// 气泡下方按钮区域高度
+    private let actionAreaHeight: CGFloat = 90
     
     private let bubbleColor = Color(red: 0xEC/255, green: 0xEF/255, blue: 0xF3/255)
     
@@ -100,105 +114,132 @@ private struct BubbleContent: View {
     @State private var isTyping: Bool = false  // 是否正在打字
     @State private var typingTaskId: UUID = UUID()  // 打字任务ID，用于取消
     @State private var textOpacity: Double = 0.0  // 文本透明度，用于淡入效果
-    @State private var shouldExpand: Bool = false  // 是否应该展开（基于文本长度预判）
-    @State private var textLengthCache: Int = 0  // 文本长度缓存
     
     // 根据展开状态自动选择模版
     private var currentTemplate: ReactTextBarTemplate {
         isExpanded ? .template2 : .template1
     }
     
-    // 预判文本是否需要展开（基于字节数量）
-    private func shouldTextExpand(_ text: String) -> Bool {
-        // 计算字节数量：使用UTF-8编码
-        let byteCount = text.utf8.count
-        let estimatedShouldExpand = byteCount > 180
-        print("📏 Quick estimate: \(byteCount) bytes, should expand: \(estimatedShouldExpand)")
-        return estimatedShouldExpand
-    }
-    
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .topLeading) {
+                // 外层 VStack：文字区 + 分割线 + 按钮预留区，共享同一气泡背景
                 VStack(alignment: .leading, spacing: 0) {
-                    // 标题部分（始终存在，通过 opacity 控制显示）
-                    GeometryReader { titleGeometry in
-                        let availableWidth = titleGeometry.size.width - CutoutPositionCalculator.cutoutWidth
-                        let titleOffset = -CutoutPositionCalculator.cutoutWidth / 2
-                        
-                        Text(title.isEmpty ? " " : title)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(titleColor)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                            .frame(width: availableWidth, height: CutoutPositionCalculator.cutoutHeight, alignment: .center)
-                            .offset(x: titleOffset)
-                            .frame(width: titleGeometry.size.width, height: titleGeometry.size.height, alignment: .center)
-                    }
-                    .frame(height: CutoutPositionCalculator.cutoutHeight)
-                    .opacity(currentTemplate == .template2 ? 1.0 : 0.0)
                     
-                    // 分割线（始终存在，通过 opacity 控制显示）
-                    Divider()
-                        .background(Color.gray.opacity(0.3))
-                        .padding(.horizontal, 16)
+                    // ── 文字内容区 ──
+                    VStack(alignment: .leading, spacing: 0) {
+                        // 标题部分（始终存在，通过 opacity 控制显示）
+                        GeometryReader { titleGeometry in
+                            let availableWidth = titleGeometry.size.width - CutoutPositionCalculator.cutoutWidth
+                            let titleOffset = -CutoutPositionCalculator.cutoutWidth / 2
+                            
+                            Text(title.isEmpty ? " " : title)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(titleColor)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                                .frame(width: availableWidth, height: CutoutPositionCalculator.cutoutHeight, alignment: .center)
+                                .offset(x: titleOffset)
+                                .frame(width: titleGeometry.size.width, height: titleGeometry.size.height, alignment: .center)
+                        }
+                        .frame(height: CutoutPositionCalculator.cutoutHeight)
                         .opacity(currentTemplate == .template2 ? 1.0 : 0.0)
-                
-                    // 预留空白
-                    Spacer()
-                        .frame(height: 8)
-                
-                    // 文本部分（动态高度，展开时可滚动）
-                    if isExpanded {
-                        // 展开状态：使用打字机效果渐进显示文本
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text(displayedText.isEmpty ? " " : displayedText)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(textColor)
-                                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                                    .padding(.horizontal, 16)
-                                    .padding(.top, 0)
-                                    .padding(.bottom, 12)
-                            }
-                        }
-                        .frame(maxHeight: .infinity)
-                        .opacity(textOpacity)
-                    } else {
-                        // 未展开状态：优化渲染，避免昂贵的布局计算
-                        if currentTemplate == .template1 {
-                            VStack(spacing: 0) {
-                                Spacer()
-                                
-                                Group {
-                                    if text.count > 200 {
-                                        Text(String(text.prefix(150)) + "...")
-                                            .font(.system(size: 16))
-                                            .foregroundColor(textColor)
-                                            .multilineTextAlignment(.center)
-                                            .lineLimit(4)
-                                            .frame(maxWidth: .infinity, alignment: .center)
-                                            .padding(.horizontal, 16)
-                                    } else {
-                                        Text(text.isEmpty ? " " : text)
-                                            .font(.system(size: 16))
-                                            .foregroundColor(textColor)
-                                            .multilineTextAlignment(.center)
-                                            .lineLimit(4)
-                                            .frame(maxWidth: .infinity, alignment: .center)
-                                            .padding(.horizontal, 16)
-                                    }
-                                }
-                                
-                                Spacer()
-                            }
-                        }
-                    }
+                        
+                        // 标题分割线（展开时显示）
+                        Divider()
+                            .background(Color.gray.opacity(0.3))
+                            .padding(.horizontal, 16)
+                            .opacity(currentTemplate == .template2 ? 1.0 : 0.0)
                     
-                    Spacer()
+                        // 预留空白
+                        Spacer()
+                            .frame(height: 8)
+                    
+                        // 文本部分（动态高度，展开时可滚动）
+                        if isExpanded {
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(displayedText.isEmpty ? " " : displayedText)
+                                        .font(.system(size: 16))
+                                        .foregroundColor(textColor)
+                                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                                        .padding(.horizontal, 16)
+                                        .padding(.top, 0)
+                                        .padding(.bottom, 12)
+                                }
+                            }
+                            .frame(maxHeight: .infinity)
+                            .opacity(textOpacity)
+                        } else {
+                            if currentTemplate == .template1 {
+                                VStack(spacing: 0) {
+                                    Spacer()
+                                    Group {
+                                        if text.count > 200 {
+                                            Text(String(text.prefix(150)) + "...")
+                                                .font(.system(size: 16))
+                                                .foregroundColor(textColor)
+                                                .multilineTextAlignment(.center)
+                                                .lineLimit(4)
+                                                .frame(maxWidth: .infinity, alignment: .center)
+                                                .padding(.horizontal, 16)
+                                        } else {
+                                            Text(text.isEmpty ? " " : text)
+                                                .font(.system(size: 16))
+                                                .foregroundColor(textColor)
+                                                .multilineTextAlignment(.center)
+                                                .lineLimit(4)
+                                                .frame(maxWidth: .infinity, alignment: .center)
+                                                .padding(.horizontal, 16)
+                                        }
+                                    }
+                                    Spacer()
+                                }
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    .frame(minHeight: 120, alignment: .top)
+                    .frame(maxHeight: isExpanded ? calculateMaxHeight(screenHeight: screenHeight) : 120, alignment: .top)
+                    
+                    // ── 分割线 + 按钮区：仅展开时显示 ──
+                    if isExpanded {
+                        Divider()
+                            .background(Color.gray.opacity(0.3))
+                            .padding(.horizontal, 16)
+                        
+                        ZStack {
+                            Button {
+                                onShareTapped?()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Text("Share With Friends")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundColor(.black.opacity(0.75))
+                                    
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.black.opacity(0.75))
+                                        .padding(8)
+                                        .background(Color.white.opacity(0.85))
+                                        .clipShape(Circle())
+                                }
+                                .padding(.vertical, 14)
+                                .padding(.leading, 24)
+                                .padding(.trailing, 12)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.white.opacity(shareEnabled ? 0.85 : 0.45))
+                                )
+                            }
+                            .disabled(!shareEnabled)
+                        }
+                        .frame(height: actionAreaHeight)
+                        .frame(maxWidth: .infinity)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
                 }
-                .frame(minHeight: 120, alignment: .top)
-                .frame(maxHeight: isExpanded ? calculateMaxHeight(screenHeight: screenHeight) : 120, alignment: .top)
                 .background(
                     BubbleWithLCutout()
                         .fill(bubbleColor.opacity(isExpanded ? 0.7 : 0.4))
@@ -229,17 +270,8 @@ private struct BubbleContent: View {
                     if previousText != newValue {
                         print("🔄 Text changed from '\(previousText.prefix(20))...' to '\(newValue.prefix(20))...'")
                         previousText = newValue
-                        textLengthCache = newValue.count
                         
-                        let needsExpansion = shouldTextExpand(newValue)
-                        
-                        if needsExpansion && !isExpanded {
-                            print("🚀 Quick expansion triggered by text length")
-                            shouldExpand = true
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                isExpanded = true
-                            }
-                        } else if isExpanded {
+                        if isExpanded {
                             print("🔄 Already expanded, restarting typewriter effect")
                             cancelTyping()
                             displayedText = ""
@@ -251,20 +283,27 @@ private struct BubbleContent: View {
                         }
                     }
                 }
+                .onChange(of: shouldExpand) { oldValue, newValue in
+                    print("🚀 shouldExpand changed: \(oldValue) → \(newValue)")
+                    
+                    if newValue && !isExpanded {
+                        print("⚡ Expanding bubble triggered by shouldExpand signal")
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            isExpanded = true
+                        }
+                    }
+                }
                 .onAppear {
                     if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                         screenHeight = windowScene.screen.bounds.height
                         print("🖥️ Screen height from hardware: \(screenHeight)pt")
                     }
                     previousText = text
-                    textLengthCache = text.count
                     print("📱 BubbleContent appeared with text length: \(text.count)")
-                    print("📱 Initial state - isExpanded: \(isExpanded)")
-                    
-                    shouldExpand = shouldTextExpand(text)
+                    print("📱 Initial state - isExpanded: \(isExpanded), shouldExpand: \(shouldExpand)")
                     
                     if shouldExpand && !isExpanded {
-                        print("🚀 Initial expansion triggered by text length")
+                        print("🚀 Initial expansion triggered by shouldExpand signal")
                         DispatchQueue.main.async {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 isExpanded = true
@@ -371,14 +410,13 @@ private struct BubbleContent: View {
         print("🔄 ReactTextBar reset: isExpanded = false")
     }
     
-    // 计算扩展时的最大高度
+    // 计算扩展时的最大高度（仅文字内容区，不含底部按钮区）
     private func calculateMaxHeight(screenHeight: CGFloat) -> CGFloat {
         guard screenHeight > 0 else { return .infinity }
-        // 气泡框最大高度 = 屏幕高度 - 顶部padding(60) - DebugPanel空间(100) - 底部边距(20)
-        // 为 DebugPanel 预留足够空间，防止遮挡
-        let debugPanelSpace: CGFloat = 100  // DebugPanel 预留空间
-        let maxHeight = screenHeight - 60 - debugPanelSpace - 20
-        print("🎈 Calculated max height: \(maxHeight)pt (Screen: \(screenHeight)pt, Reserved for Debug: \(debugPanelSpace)pt)")
+        // 气泡框最大高度 = 屏幕高度 - 顶部padding(60) - DebugPanel空间(100) - 底部边距(20) - 按钮区(90) - 分割线(1)
+        let debugPanelSpace: CGFloat = 100
+        let maxHeight = screenHeight - 60 - debugPanelSpace - 20 - actionAreaHeight - 1
+        print("🎈 Calculated max height: \(maxHeight)pt (Screen: \(screenHeight)pt, Reserved for Debug: \(debugPanelSpace)pt, ActionArea: \(actionAreaHeight)pt)")
         return maxHeight
     }
 }

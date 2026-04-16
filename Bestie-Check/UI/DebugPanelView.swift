@@ -15,9 +15,18 @@ struct DebugPanelView: View {
     @Binding var showViewFinderScan: Bool  // ViewFinder 扫描线开关
     @Binding var useRGBBackground: Bool  // 背景模式开关
     @State private var isExpanded: Bool = false
-    @State private var testText: String = ""  // 测试文本输入
-    @State private var byteCount: Int = 0  // 字节数量
-    @State private var shouldExpand: Bool = false  // 是否应该展开
+    @State private var testText: String = ""
+    @State private var byteCount: Int = 0
+    @State private var shouldExpand: Bool = false
+    @State private var previewShareImage: UIImage? = nil
+    @State private var savedToPhotos: Bool = false
+    @State private var showPreview = false
+    @State private var previewImageForUI: UIImage?
+    
+    private func updateExpansionCheck(_ text: String) {
+        byteCount = text.utf8.count
+        shouldExpand = byteCount > 180
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -156,9 +165,9 @@ struct DebugPanelView: View {
                     Divider()
                         .background(Color.white.opacity(0.3))
                     
-                    // 展开检测输入框
+                    // 气泡测试输入框
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Expansion Test (180 bytes)")
+                        Text("Bubble Inject Test")
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
@@ -174,7 +183,7 @@ struct DebugPanelView: View {
                                 updateExpansionCheck(newValue)
                             }
                         
-                        // 显示检测结果
+                        // 显示字节数（仅参考）
                         HStack(spacing: 8) {
                             Text("\(byteCount) bytes")
                                 .font(.caption2)
@@ -183,15 +192,15 @@ struct DebugPanelView: View {
                             Spacer()
                             
                             HStack(spacing: 4) {
-                                Image(systemName: shouldExpand ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
-                                Text(shouldExpand ? "EXPAND" : "NO EXPAND")
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                Text("Inject → Expand")
                             }
                             .font(.caption2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(shouldExpand ? Color.green.opacity(0.8) : Color.gray.opacity(0.6))
+                            .background(Color.blue.opacity(0.6))
                             .cornerRadius(4)
                         }
                         
@@ -240,7 +249,7 @@ struct DebugPanelView: View {
                         
                         // 注入到气泡按钮
                         Button(action: {
-                            viewModel.injectTestText(testText, autoHide: false)
+                            viewModel.injectTestText(testText, autoHide: false, isAIResponse: true)
                         }) {
                             HStack {
                                 Image(systemName: "arrow.right.circle.fill")
@@ -278,21 +287,72 @@ struct DebugPanelView: View {
                         .background(faceDetectionProvider.faceDetected ? Color.green.opacity(0.7) : Color.red.opacity(0.7))
                         .cornerRadius(6)
                     }
+                    
+                    Divider()
+                        .background(Color.white.opacity(0.3))
+                    
+                    // 分享图预览（占位背景，无需相机）
+                    VStack(spacing: 6) {
+                        // 👉 Debug 进入 SharePreviewView（替代 Save to Photos）
+                        Button(action: {
+                            print("🔥 BUTTON CLICKED")
+                            
+                            // 使用真实的 AI 反馈文本或测试文本
+                            let testText = "这是一个测试的 AI 反馈文本，用于展示分享预览界面的效果。"
+                            
+                            showPreview = true
+                        }) {
+                            HStack {
+                                Image(systemName: "eye")
+                                Text("Preview → Open UI")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background(Color.green.opacity(0.7))
+                            .cornerRadius(6)
+                        }
+                        
+                        // 通过系统分享面板查看
+                        Button(action: {
+                            let reply = viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            
+                            showPreview = true
+                        }) {
+                            HStack {
+                                Image(systemName: "eye.fill")
+                                Text("Preview → Open UI (Alt)")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background(Color.purple.opacity(0.7))
+                            .cornerRadius(6)
+                        }
+                    }
+                    
+                    /// 👉 打开 Preview 页面
+                    .fullScreenCover(isPresented: $showPreview) {
+                        SharePreviewView(
+                            selfieImage: UIImage(systemName: "person.fill"),  // 占位图像
+                            aiReplyText: viewModel.bubbleText.isEmpty ? "测试 AI 反馈文本" : viewModel.bubbleText,  // 使用 ViewModel 的文本
+                            onRetake: {
+                                // 重新拍照的逻辑
+                                print("重新拍照")
+                                showPreview = false
+                            },
+                            onDismiss: {
+                                // 关闭预览的逻辑
+                                print("关闭预览")
+                                showPreview = false
+                            }
+                        )
+                    }
                 }
-                .padding(12)
-                .background(Color.black.opacity(0.7))
-                .cornerRadius(12)
-                .transition(.opacity.combined(with: .scale))
             }
         }
-        .padding(.trailing, 16)
-        .padding(.top, 60)
-    }
-    
-    // 更新展开检测
-    private func updateExpansionCheck(_ text: String) {
-        byteCount = text.utf8.count
-        shouldExpand = byteCount > 180
     }
 }
 
@@ -309,9 +369,16 @@ struct DebugPanelView: View {
                 showViewFinderScan: $showViewFinderScan,
                 useRGBBackground: $useRGBBackground
             )
-                .background(Color.black)
+            .background(Color.black)
         }
     }
     
     return PreviewWrapper()
 }
+
+// MARK: - Helpers
+struct IdentifiableImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
