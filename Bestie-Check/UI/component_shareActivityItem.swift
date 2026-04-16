@@ -9,6 +9,73 @@ import SwiftUI
 import UIKit
 import CoreText
 
+// MARK: - Share Activity Item (Compatibility)
+
+/// Many third-party share extensions are flaky with in-memory `UIImage`.
+/// Provide a temporary JPEG file URL for better interoperability.
+final class ShareImageActivityItemSource: NSObject, UIActivityItemSource {
+    private let image: UIImage
+    private let fileURL: URL
+
+    init?(image: UIImage, preferredFileName: String = "GOSHSHA-Share") {
+        self.image = image
+
+        let dir = FileManager.default.temporaryDirectory
+        let file = "\(preferredFileName)-\(UUID().uuidString).jpg"
+        self.fileURL = dir.appendingPathComponent(file)
+
+        super.init()
+
+        guard let data = image.jpegData(compressionQuality: 0.92) else { return nil }
+        do {
+            try data.write(to: fileURL, options: [.atomic])
+        } catch {
+            return nil
+        }
+    }
+
+    func cleanup() {
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        fileURL
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        itemForActivityType activityType: UIActivity.ActivityType?
+    ) -> Any? {
+        // Keep "Copy" behavior consistent (pasteboard expects UIImage).
+        if activityType == .copyToPasteboard {
+            return image
+        }
+        return fileURL
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?
+    ) -> String {
+        "public.jpeg"
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        subjectForActivityType activityType: UIActivity.ActivityType?
+    ) -> String {
+        "GOSHSHA"
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        thumbnailImageForActivityType activityType: UIActivity.ActivityType?,
+        suggestedSize size: CGSize
+    ) -> UIImage? {
+        image
+    }
+}
+
 // MARK: - Font Loader
 
 /// 从 Bundle 动态注册并返回自定义字体，失败时回退到系统字体
@@ -270,25 +337,50 @@ struct ShareFlowModifier: ViewModifier {
     @Binding var isPresented: Bool
     /// AI 回复文字，用于合成图片
     let replyText: String
+    /// App 自动抓拍的照片（用于发给 AI 的那张，优先用于分享）
+    let preCapturedImage: UIImage?
 
     @State private var isShareSheetPresented: Bool = false
     @State private var shareActivityItems: [Any] = []
+    @State private var shareItemSource: ShareImageActivityItemSource? = nil
+    @State private var isRetakeCameraPresented: Bool = false
+    @State private var lastManualSelfie: UIImage? = nil
 
     func body(content: Content) -> some View {
         content
             .fullScreenCover(isPresented: $isPresented) {
-                ShareCameraPicker { image in
-                    isPresented = false
-                    let reply = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard let image, !reply.isEmpty else { return }
-                    shareActivityItems = [makeShareImage(photo: image, replyText: reply)]
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        isShareSheetPresented = true
+                ShareTemplateSelectionView(
+                    replyText: replyText,
+                    preCapturedImage: preCapturedImage,
+                    manualSelfie: lastManualSelfie,
+                    onPickTemplate: { composedImage in
+                        isPresented = false
+                        shareItemSource?.cleanup()
+                        let source = ShareImageActivityItemSource(image: composedImage)
+                        shareItemSource = source
+                        shareActivityItems = source.map { [$0] } ?? [composedImage]
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            isShareSheetPresented = true
+                        }
+                    },
+                    onRetake: {
+                        isRetakeCameraPresented = true
+                    },
+                    onDismiss: {
+                        isPresented = false
                     }
+                )
+                .fullScreenCover(isPresented: $isRetakeCameraPresented) {
+                    ShareCameraPicker { image in
+                        isRetakeCameraPresented = false
+                        lastManualSelfie = image
+                    }
+                    .ignoresSafeArea()
                 }
-                .ignoresSafeArea()
             }
             .sheet(isPresented: $isShareSheetPresented, onDismiss: {
+                shareItemSource?.cleanup()
+                shareItemSource = nil
                 shareActivityItems = []
             }) {
                 ShareSheet(activityItems: shareActivityItems)
@@ -303,7 +395,8 @@ extension View {
     /// - Parameters:
     ///   - isPresented: 设为 true 即触发流程（拍照 → 合成 → 分享面板）
     ///   - replyText: AI 回复文字，嵌入合成图片
-    func shareFlow(isPresented: Binding<Bool>, replyText: String) -> some View {
-        modifier(ShareFlowModifier(isPresented: isPresented, replyText: replyText))
+    ///   - preCapturedImage: App 自动抓拍的照片（用于发给 AI 的那张，优先用于分享）
+    func shareFlow(isPresented: Binding<Bool>, replyText: String, preCapturedImage: UIImage?) -> some View {
+        modifier(ShareFlowModifier(isPresented: isPresented, replyText: replyText, preCapturedImage: preCapturedImage))
     }
 }
