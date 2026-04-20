@@ -128,33 +128,13 @@ func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
         UIColor.white.setFill()
         ctx.fill(bounds)
 
-        // ── 3. 用户照片（aspect-fill，居中裁剪）─────────────────────────
-        let imgSize  = photo.size
-        let imgScale = max(ptSize.width  / max(imgSize.width,  1),
-                           ptSize.height / max(imgSize.height, 1))
-        let drawW    = imgSize.width  * imgScale
-        let drawH    = imgSize.height * imgScale
-        let drawRect = CGRect(
-            x: (ptSize.width  - drawW) / 2,
-            y: (ptSize.height - drawH) / 2,
-            width: drawW, height: drawH
-        )
-        cgCtx.saveGState()
-        cgCtx.clip(to: bounds)
-        photo.draw(in: drawRect)
-        cgCtx.restoreGState()
-
-        // ── 4. 白色蒙版（80%）────────────────────────────────────────────
-        UIColor.white.withAlphaComponent(0.80).setFill()
-        ctx.fill(bounds)
-
-        // ── 5. 品牌 header（Logo + "GOSHSHA"，水平居中）──────────────────
+        // ── 3. 品牌 header（Logo + "GOSHSHA"，水平居中）──────────────────
         let headerH:  CGFloat = ptSize.height * 0.13
-        let logoSize: CGFloat = headerH * 0.70 * 1.10   // 放大 10%
+        let logoSize: CGFloat = headerH * 0.70 * 1.10
         let brandGap: CGFloat = logoSize * 0.25
-        let centerY:  CGFloat = headerH / 2 + headerH * 0.20   // 下移 20%
+        let centerY:  CGFloat = headerH / 2 + headerH * 0.20
 
-        let brandFont = playwriteFont(size: ptSize.height * 0.10 * 0.38)  // 字体大小锁定，不随 headerH 变化
+        let brandFont = playwriteFont(size: ptSize.height * 0.10 * 0.38)
         let brandText = "GOSHSHA" as NSString
         let brandAttrs: [NSAttributedString.Key: Any] = [
             .font: brandFont,
@@ -167,78 +147,66 @@ func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
         if let logoImage = UIImage(named: "GoshshaIcon") {
             let logoW = logoSize
             let logoH = logoSize * 1.31
-            logoImage.draw(in: CGRect(
-                x: startX,
-                y: centerY - logoH / 2,
-                width: logoW, height: logoH
-            ))
+            logoImage.draw(in: CGRect(x: startX, y: centerY - logoH / 2, width: logoW, height: logoH))
         }
         brandText.draw(
-            in: CGRect(
-                x: startX + logoSize + brandGap,
-                y: centerY - brandTextSize.height / 2,
-                width: brandTextSize.width,
-                height: brandTextSize.height
-            ),
+            in: CGRect(x: startX + logoSize + brandGap, y: centerY - brandTextSize.height / 2,
+                       width: brandTextSize.width, height: brandTextSize.height),
             withAttributes: brandAttrs
         )
 
-        // ── 6. 大圆角照片方框 ─────────────────────────────────────────────
-        let boxPadding: CGFloat = ptSize.width  * 0.03    // 左右各 3% 留白
+        // ── 4. 方框尺寸计算 ───────────────────────────────────────────────
+        let boxPadding: CGFloat = ptSize.width  * 0.03
         let boxTop:     CGFloat = headerH + ptSize.height * 0.02
         let boxWidth:   CGFloat = ptSize.width  - boxPadding * 2
-        let boxBottom:  CGFloat = ptSize.height - ptSize.height * 0.03  // 底部 3% 留白
+        let boxBottom:  CGFloat = ptSize.height - ptSize.height * 0.03
         let boxHeight:  CGFloat = boxBottom - boxTop
         let boxCorner:  CGFloat = boxWidth * 0.08
         let strokeW:    CGFloat = 3.0
-
         let boxRect = CGRect(x: boxPadding, y: boxTop, width: boxWidth, height: boxHeight)
 
-        // 填充：淡灰占位色
-        let fillPath = UIBezierPath(roundedRect: boxRect, cornerRadius: boxCorner)
-        UIColor.black.withAlphaComponent(0.06).setFill()
-        fillPath.fill()
+        // ── 5. 用户照片（aspect-fill，clip 到圆角方框内部）────────────────
+        let boxClipPath = UIBezierPath(roundedRect: boxRect, cornerRadius: boxCorner)
+        cgCtx.saveGState()
+        cgCtx.addPath(boxClipPath.cgPath)
+        cgCtx.clip()
 
-        // 渐变描边：三色循环（69AC14 → 493D89 → F84C4C → 69AC14）
-        // 技巧：将描边路径扩展为 clip region，再在上面绘制渐变
+        let imgSize  = photo.size
+        let imgScale = max(boxWidth  / max(imgSize.width,  1),
+                           boxHeight / max(imgSize.height, 1))
+        let drawW    = imgSize.width  * imgScale
+        let drawH    = imgSize.height * imgScale
+        photo.draw(in: CGRect(
+            x: boxRect.minX + (boxWidth  - drawW) / 2,
+            y: boxRect.minY + (boxHeight - drawH) / 2,
+            width: drawW, height: drawH
+        ))
+        cgCtx.restoreGState()
+
+        // ── 6. 渐变描边（三色循环 69AC14 → 493D89 → F84C4C）─────────────
         let strokePath = UIBezierPath(roundedRect: boxRect, cornerRadius: boxCorner)
         strokePath.lineWidth = strokeW
 
         cgCtx.saveGState()
-
-        // 用"描边 clip"：把描边区域设为裁剪区
-        // 先 clip 到描边区域（外扩 stroke/2，内缩 stroke/2）
         cgCtx.setLineWidth(strokeW)
         cgCtx.addPath(strokePath.cgPath)
-        cgCtx.replacePathWithStrokedPath()   // 将描边路径转换为填充路径
-        cgCtx.clip()                          // clip 到描边区域
+        cgCtx.replacePathWithStrokedPath()
+        cgCtx.clip()
 
-        // 在 clip 区域内绘制锥形渐变（沿方框一圈循环）
-        // 使用线性渐变从左上 → 右下 → 左上 覆盖整个 boxRect，颜色循环
         let c1 = UIColor(red: 0x69/255.0, green: 0xAC/255.0, blue: 0x14/255.0, alpha: 1)
         let c2 = UIColor(red: 0x49/255.0, green: 0x3D/255.0, blue: 0x89/255.0, alpha: 1)
         let c3 = UIColor(red: 0xF8/255.0, green: 0x4C/255.0, blue: 0x4C/255.0, alpha: 1)
-
-        // 渐变色带：c1 → c2 → c3 → c1（循环闭合）
-        let gradColors = [c1.cgColor, c2.cgColor, c3.cgColor, c1.cgColor] as CFArray
+        let colorSpace  = CGColorSpaceCreateDeviceRGB()
+        let gradColors  = [c1.cgColor, c2.cgColor, c3.cgColor, c1.cgColor] as CFArray
         let locations: [CGFloat] = [0.0, 0.33, 0.66, 1.0]
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let gradient = CGGradient(colorsSpace: colorSpace,
-                                  colors: gradColors,
-                                  locations: locations)!
-
-        // 对角线方向渐变，覆盖整个 boxRect，让颜色环绕方框一圈
-        // 两个端点沿方框对角线，保证四条边都能看到颜色变化
-        let gradStart = CGPoint(x: boxRect.minX, y: boxRect.minY)
-        let gradEnd   = CGPoint(x: boxRect.maxX, y: boxRect.maxY)
+        let gradient = CGGradient(colorsSpace: colorSpace, colors: gradColors, locations: locations)!
         cgCtx.drawLinearGradient(gradient,
-                                  start: gradStart,
-                                  end: gradEnd,
+                                  start: CGPoint(x: boxRect.minX, y: boxRect.minY),
+                                  end:   CGPoint(x: boxRect.maxX, y: boxRect.maxY),
                                   options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-
         cgCtx.restoreGState()
 
-        // ── 7. 玻璃质感气泡（承载 AI 反馈，位于方框下半部分）─────────────
+                // ── 7. 玻璃质感气泡（承载 AI 反馈，位于方框下半部分）─────────────
         // 截取前 25 个单词
         let words      = replyText.split(separator: " ").prefix(25)
         let shortReply = words.joined(separator: " ") + (replyText.split(separator: " ").count > 25 ? "…" : "")
@@ -333,18 +301,18 @@ func makeShareImagePreview(replyText: String) -> UIImage {
 
 /// 将完整的 share 流程（相机 → 合成 → 系统分享面板）作为 ViewModifier 挂载到任意 View
 struct ShareFlowModifier: ViewModifier {
-    /// 触发整个 share 流程的开关，由父视图控制
     @Binding var isPresented: Bool
-    /// AI 回复文字，用于合成图片
     let replyText: String
-    /// App 自动抓拍的照片（用于发给 AI 的那张，优先用于分享）
     let preCapturedImage: UIImage?
 
-    @State private var isShareSheetPresented: Bool = false
-    @State private var shareActivityItems: [Any] = []
-    @State private var shareItemSource: ShareImageActivityItemSource? = nil
-    @State private var isRetakeCameraPresented: Bool = false
-    @State private var lastManualSelfie: UIImage? = nil
+    @State private var composedImage: UIImage? = nil
+
+    private func recompose(with photo: UIImage) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = makeShareImage(photo: photo, replyText: replyText)
+            DispatchQueue.main.async { composedImage = result }
+        }
+    }
 
     func body(content: Content) -> some View {
         content
@@ -352,39 +320,44 @@ struct ShareFlowModifier: ViewModifier {
                 ShareTemplateSelectionView(
                     replyText: replyText,
                     preCapturedImage: preCapturedImage,
-                    manualSelfie: lastManualSelfie,
-                    onPickTemplate: { composedImage in
+                    composedImage: $composedImage,
+                    onPickTemplate: { img in
+                        // 关闭 fullScreenCover，动画结束后直接从 window 弹出系统分享面板
+                        // 不用 SwiftUI .sheet，避免与 fullScreenCover 的层级冲突
                         isPresented = false
-                        shareItemSource?.cleanup()
-                        let source = ShareImageActivityItemSource(image: composedImage)
-                        shareItemSource = source
-                        shareActivityItems = source.map { [$0] } ?? [composedImage]
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            isShareSheetPresented = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
+                            let vc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
+                            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                               let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController {
+                                var top = root
+                                while let presented = top.presentedViewController { top = presented }
+                                if let popover = vc.popoverPresentationController {
+                                    popover.sourceView = top.view
+                                    popover.sourceRect = CGRect(x: top.view.bounds.midX,
+                                                                y: top.view.bounds.midY,
+                                                                width: 0, height: 0)
+                                    popover.permittedArrowDirections = []
+                                }
+                                top.present(vc, animated: true)
+                            }
                         }
                     },
-                    onRetake: {
-                        isRetakeCameraPresented = true
+                    onNewPhoto: { photo in
+                        // Use Photo 点击后：重新合成，绑定自动刷新预览
+                        recompose(with: photo)
                     },
                     onDismiss: {
                         isPresented = false
                     }
                 )
-                .fullScreenCover(isPresented: $isRetakeCameraPresented) {
-                    ShareCameraPicker { image in
-                        isRetakeCameraPresented = false
-                        lastManualSelfie = image
+                .onAppear {
+                    // 首次打开合成初始预览
+                    if let photo = preCapturedImage {
+                        recompose(with: photo)
                     }
-                    .ignoresSafeArea()
                 }
             }
-            .sheet(isPresented: $isShareSheetPresented, onDismiss: {
-                shareItemSource?.cleanup()
-                shareItemSource = nil
-                shareActivityItems = []
-            }) {
-                ShareSheet(activityItems: shareActivityItems)
-            }
+
     }
 }
 

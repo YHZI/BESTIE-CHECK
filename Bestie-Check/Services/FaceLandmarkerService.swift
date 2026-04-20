@@ -104,7 +104,7 @@ class FaceLandmarkerService: NSObject {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         let context = CIContext()
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
-        return UIImage(cgImage: cgImage)
+        return UIImage(cgImage: cgImage, scale: 1.0, orientation: .right).normalized()
     }
     
     /// 异步封装：在后台队列跑 detectSync，不阻塞主线程
