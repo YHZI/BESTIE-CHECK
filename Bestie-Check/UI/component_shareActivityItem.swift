@@ -102,14 +102,28 @@ private func playwriteFont(size: CGFloat, weight: CGFloat = 700) -> UIFont {
 // MARK: - Share Image Composer
 
 /// 将 AI 回复文字合成到照片上，生成可分享的图片
+/// - 注意：必须在主线程调用（需要访问 UIScreen.main）
 func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
 
-    // ── 1. Canvas 尺寸（设备屏幕比例，物理像素）──────────────────────────
+    // ── 1. Canvas 尺寸 ── 必须在主线程读取 UIScreen ────────────────────
+    assert(Thread.isMainThread, "makeShareImage must be called on the main thread to read UIScreen")
     let screen      = UIScreen.main
     let ptWidth     = screen.bounds.width
-    let ptHeight    = screen.bounds.height          // 真实屏幕比例
-    let renderScale = screen.scale                  // @2x / @3x
+    let ptHeight    = screen.bounds.height
+    let renderScale = screen.scale
 
+    // 提前在主线程捕获所有需要的值，后续可安全传到后台
+    return _renderShareImage(
+        photo: photo, replyText: replyText,
+        ptWidth: ptWidth, ptHeight: ptHeight, renderScale: renderScale
+    )
+}
+
+/// 纯渲染函数：所有参数已捕获，可在任意线程调用
+private func _renderShareImage(
+    photo: UIImage, replyText: String,
+    ptWidth: CGFloat, ptHeight: CGFloat, renderScale: CGFloat
+) -> UIImage {
     let format = UIGraphicsImageRendererFormat()
     format.scale = renderScale
     format.opaque = true
@@ -206,19 +220,18 @@ func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
                                   options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
         cgCtx.restoreGState()
 
-                // ── 7. 玻璃质感气泡（承载 AI 反馈，位于方框下半部分）─────────────
-        // 截取前 25 个单词
+        // ── 7. 玻璃质感气泡 ───────────────────────────────────────────────
         let words      = replyText.split(separator: " ").prefix(25)
         let shortReply = words.joined(separator: " ") + (replyText.split(separator: " ").count > 25 ? "…" : "")
 
         guard !shortReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        let bubblePad:    CGFloat = boxWidth  * 0.05   // 气泡与方框内壁间距
+        let bubblePad:    CGFloat = boxWidth  * 0.05
         let bubbleW:      CGFloat = boxWidth  - bubblePad * 2
-        let bubbleH:      CGFloat = boxHeight * 0.30   // 占方框高度 30%
+        let bubbleH:      CGFloat = boxHeight * 0.30
         let bubbleCorner: CGFloat = boxCorner * 0.75
         let bubbleX:      CGFloat = boxRect.minX + bubblePad
-        let bubbleY:      CGFloat = boxRect.maxY - bubblePad - bubbleH  // 紧贴方框底部
+        let bubbleY:      CGFloat = boxRect.maxY - bubblePad - bubbleH
         let bubbleRect    = CGRect(x: bubbleX, y: bubbleY, width: bubbleW, height: bubbleH)
         let bubblePath    = UIBezierPath(roundedRect: bubbleRect, cornerRadius: bubbleCorner)
 
@@ -226,29 +239,22 @@ func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
         cgCtx.addPath(bubblePath.cgPath)
         cgCtx.clip()
 
-        // 玻璃底层：白色半透明
         UIColor.white.withAlphaComponent(0.30).setFill()
         bubblePath.fill()
 
-        // 玻璃光泽：顶部高光线性渐变
         let glassColors = [UIColor.white.withAlphaComponent(0.55).cgColor,
                            UIColor.white.withAlphaComponent(0.10).cgColor] as CFArray
-        let glassGradient = CGGradient(colorsSpace: colorSpace,
-                                       colors: glassColors,
-                                       locations: [0.0, 1.0])!
+        let glassGradient = CGGradient(colorsSpace: colorSpace, colors: glassColors, locations: [0.0, 1.0])!
         cgCtx.drawLinearGradient(glassGradient,
                                   start: CGPoint(x: bubbleRect.midX, y: bubbleRect.minY),
                                   end:   CGPoint(x: bubbleRect.midX, y: bubbleRect.maxY),
                                   options: [])
-
         cgCtx.restoreGState()
 
-        // 玻璃边框：细白描边
         UIColor.white.withAlphaComponent(0.60).setStroke()
         bubblePath.lineWidth = 1.0
         bubblePath.stroke()
 
-        // 气泡内文字
         let textPadH:  CGFloat = bubbleW * 0.06
         let textPadV:  CGFloat = bubbleH * 0.12
         let textRect   = bubbleRect.insetBy(dx: textPadH, dy: textPadV)
@@ -308,11 +314,24 @@ struct ShareFlowModifier: ViewModifier {
     let viewModel: FaceMeshAssistantViewModel
 
     @State private var composedImage: UIImage? = nil
+    @State private var composeTask: Task<Void, Never>? = nil
 
+    /// 在主线程捕获 screen 参数，然后在后台线程纯渲染，持有 Task 可随时 cancel
     private func recompose(with photo: UIImage) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = makeShareImage(photo: photo, replyText: replyText)
-            DispatchQueue.main.async { composedImage = result }
+        composeTask?.cancel()
+        // 在主线程读取 UIScreen（安全），捕获值传入后台
+        let ptWidth     = UIScreen.main.bounds.width
+        let ptHeight    = UIScreen.main.bounds.height
+        let renderScale = UIScreen.main.scale
+        let reply       = replyText
+
+        composeTask = Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                _renderShareImage(photo: photo, replyText: reply,
+                                  ptWidth: ptWidth, ptHeight: ptHeight, renderScale: renderScale)
+            }.value
+            guard !Task.isCancelled else { return }
+            await MainActor.run { composedImage = result }
         }
     }
 
@@ -324,10 +343,6 @@ struct ShareFlowModifier: ViewModifier {
                     preCapturedImage: preCapturedImage,
                     composedImage: $composedImage,
                     onPickTemplate: { img in
-                        // 先找到当前最顶层 VC（即 fullScreenCover 的 VC）
-                        // 把 UIActivityViewController present 在它上面
-                        // 用户完成/取消分享后，在 completionHandler 里再关闭 fullScreenCover
-                        // 这样顺序是：share sheet → 用户操作 → dismiss sheet → dismiss fullScreenCover → 回主页
                         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                               let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
                         else { return }
@@ -339,7 +354,7 @@ struct ShareFlowModifier: ViewModifier {
                         vc.completionWithItemsHandler = { _, _, _, _ in
                             DispatchQueue.main.async {
                                 isPresented = false
-                                isBubbleExpanded = false   // ← 气泡收起
+                                isBubbleExpanded = false
                                 viewModel.resetToWelcome()
                             }
                         }
@@ -353,21 +368,27 @@ struct ShareFlowModifier: ViewModifier {
                         top.present(vc, animated: true)
                     },
                     onNewPhoto: { photo in
-                        // Use Photo 点击后：重新合成，绑定自动刷新预览
                         recompose(with: photo)
                     },
                     onDismiss: {
+                        composeTask?.cancel()
                         isPresented = false
                     }
                 )
                 .onAppear {
-                    // 首次打开合成初始预览
-                    if let photo = preCapturedImage {
+                    // 只在首次打开时合成，如果已有缓存直接用
+                    if composedImage == nil, let photo = preCapturedImage {
                         recompose(with: photo)
                     }
                 }
             }
-
+            .onChange(of: isPresented) { _, newValue in
+                if !newValue {
+                    // share 流程关闭时取消未完成的合成任务
+                    composeTask?.cancel()
+                    composedImage = nil   // 下次打开重新合成
+                }
+            }
     }
 }
 

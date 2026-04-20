@@ -16,25 +16,31 @@ class FaceLandmarkerService: NSObject {
     // MARK: - Properties
     private var faceLandmarker: FaceLandmarker?
     private let processingQueue = DispatchQueue(label: "com.facemesh.processing", qos: .userInitiated)
-    
+
+    /// 复用同一个 CIContext（创建代价极高，每帧新建会严重拖慢性能）
+    private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+
     // MARK: - Initialization
     override init() {
         super.init()
-        setupFaceLandmarker()
+        // 在后台线程加载模型，避免阻塞 MainActor / UI 渲染
+        processingQueue.async { [weak self] in
+            self?.setupFaceLandmarker()
+        }
     }
-    
+
     private func setupFaceLandmarker() {
         guard let modelPath = Bundle.main.path(forResource: "face_landmarker", ofType: "task") else {
-            print("❌ face_landmarker.task not found in Bundle. Please download and add to project.")
+            print("❌ face_landmarker.task not found in Bundle.")
             return
         }
-        
+
         let options = FaceLandmarkerOptions()
         options.baseOptions.modelAssetPath = modelPath
-        options.runningMode = .image  // 使用 image 模式，同步返回结果，避免 livestream delegate 匹配问题
+        options.runningMode = .image
         options.outputFaceBlendshapes = true
         options.outputFacialTransformationMatrixes = true
-        
+
         do {
             faceLandmarker = try FaceLandmarker(options: options)
             print("✅ FaceLandmarker initialized (image mode)")
@@ -42,81 +48,58 @@ class FaceLandmarkerService: NSObject {
             print("❌ Failed to initialize FaceLandmarker: \(error)")
         }
     }
-    
+
     // MARK: - Detection (Image mode，同步，在后台队列执行)
-    /// 在后台队列执行检测，返回结果（无脸时 result.faceLandmarks 为空，仍返回 result）。
-    /// 前置 AR 画面会尝试 UIImage 路径 + 多种 orientation，提高检出率。
+    /// ARKit 前置摄像头的 pixelBuffer 固定为 landscape-right 方向，
+    /// 只需尝试 .right（和镜像 .rightMirrored）两次，不再暴力穷举 10 个方向。
     func detectSync(pixelBuffer: CVPixelBuffer) -> FaceLandmarkerResult? {
-        guard let faceLandmarker = faceLandmarker else {
-            print("[detectSync] faceLandmarker nil")
-            return nil
-        }
-        
-        // 1) 用 UIImage 路径 + 多种 orientation（前置摄像头常见 .right / .left）
-        if let uiImage = pixelBufferToUIImage(pixelBuffer) {
-            print("[detectSync] UIImage created ok, size=\(uiImage.size)")
-            let orientations: [UIImage.Orientation] = [.up, .right, .left, .down, .rightMirrored, .leftMirrored]
-            for orientation in orientations {
-                let oriented = UIImage(cgImage: uiImage.cgImage!, scale: uiImage.scale, orientation: orientation)
-                if let mpImage = try? MPImage(uiImage: oriented),
-                   let result = try? faceLandmarker.detect(image: mpImage) {
-                    print("[detectSync] UIImage orientation=\(orientation.rawValue) faces=\(result.faceLandmarks.count)")
-                    if !result.faceLandmarks.isEmpty {
-                        print("[detectSync] ✅ return from UIImage path, faces=\(result.faceLandmarks.count)")
-                        return result
-                    }
-                } else {
-                    print("[detectSync] UIImage orientation=\(orientation.rawValue) MPImage or detect failed")
-                }
-            }
-            // 返回任意一次成功 detect 的 result（含无脸）
-            if let mpImage = try? MPImage(uiImage: uiImage), let result = try? faceLandmarker.detect(image: mpImage) {
-                print("[detectSync] return from UIImage .up fallback, faces=\(result.faceLandmarks.count)")
-                return result
-            }
-            print("[detectSync] UIImage path: no result")
-        } else {
-            print("[detectSync] pixelBufferToUIImage failed")
-        }
-        
-        // 2) 回退：直接用 pixelBuffer + 多种 orientation
-        let orientations: [UIImage.Orientation] = [.up, .right, .left]
-        for orientation in orientations {
-            if let mpImage = try? MPImage(pixelBuffer: pixelBuffer, orientation: orientation),
-               let result = try? faceLandmarker.detect(image: mpImage) {
-                print("[detectSync] pixelBuffer orientation=\(orientation.rawValue) faces=\(result.faceLandmarks.count)")
-                if !result.faceLandmarks.isEmpty {
-                    print("[detectSync] ✅ return from pixelBuffer path, faces=\(result.faceLandmarks.count)")
+        guard let faceLandmarker else { return nil }
+
+        // UIImage 路径：ARKit 前置 buffer 固定 .right，尝试 .right 和 .rightMirrored
+        if let cgImage = pixelBufferToCGImage(pixelBuffer) {
+            let orientationsToTry: [UIImage.Orientation] = [.right, .rightMirrored]
+            for orientation in orientationsToTry {
+                let uiImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
+                if let mpImage = try? MPImage(uiImage: uiImage),
+                   let result = try? faceLandmarker.detect(image: mpImage),
+                   !result.faceLandmarks.isEmpty {
                     return result
                 }
             }
+            // 无脸时返回最后一次检测结果（faces 为空，供上层判断无脸状态）
+            let uiImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
+            if let mpImage = try? MPImage(uiImage: uiImage),
+               let result = try? faceLandmarker.detect(image: mpImage) {
+                return result
+            }
         }
-        if let mpImage = try? MPImage(pixelBuffer: pixelBuffer, orientation: .up),
+
+        // 回退：直接用 pixelBuffer
+        if let mpImage = try? MPImage(pixelBuffer: pixelBuffer, orientation: .right),
            let result = try? faceLandmarker.detect(image: mpImage) {
-            print("[detectSync] return from pixelBuffer .up fallback, faces=\(result.faceLandmarks.count)")
             return result
         }
-        print("[detectSync] return nil (all paths failed)")
         return nil
     }
-    
-    private func pixelBufferToUIImage(_ pixelBuffer: CVPixelBuffer) -> UIImage? {
+
+    /// CIContext 复用版本：pixelBuffer → CGImage（不再每次 new CIContext）
+    private func pixelBufferToCGImage(_ pixelBuffer: CVPixelBuffer) -> CGImage? {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
-        return UIImage(cgImage: cgImage, scale: 1.0, orientation: .right).normalized()
+        return Self.ciContext.createCGImage(ciImage, from: ciImage.extent)
     }
-    
+
+    // MARK: - Async wrapper
     /// 异步封装：在后台队列跑 detectSync，不阻塞主线程
     func processFrame(_ pixelBuffer: CVPixelBuffer, timestampMs: Int64) async throws -> FaceLandmarkerResult? {
-        try await withCheckedThrowingContinuation { continuation in
+        // PixelBufferBox 是 @unchecked Sendable，可安全跨 actor 边界传递
+        let box = PixelBufferBox(pixelBuffer: pixelBuffer)
+        return try await withCheckedThrowingContinuation { continuation in
             processingQueue.async { [weak self] in
-                guard let self = self else {
+                guard let self else {
                     continuation.resume(returning: nil)
                     return
                 }
-                let result = self.detectSync(pixelBuffer: pixelBuffer)
-                continuation.resume(returning: result)
+                continuation.resume(returning: self.detectSync(pixelBuffer: box.pixelBuffer))
             }
         }
     }

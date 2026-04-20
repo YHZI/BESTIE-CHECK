@@ -123,6 +123,14 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             }
             .zIndex(1)  // 固定 zIndex，不再动态提升
             .shareFlow(isPresented: $isShareCameraPresented, isBubbleExpanded: $isBubbleExpanded, replyText: shareFrozenReplyText, preCapturedImage: shareFrozenPreImage, viewModel: viewModel)
+            .onChange(of: isShareCameraPresented) { _, sharing in
+                // 分享流程打开时暂停 ARSession，避免与 CameraPreview 争抢前置摄像头
+                if sharing {
+                    viewModel.pauseARSession()
+                } else {
+                    viewModel.resumeARSession()
+                }
+            }
             
             // 左上角返回按钮（智能模式：自动处理 ReactTextBar 状态）
             VStack {

@@ -112,7 +112,7 @@ private struct BubbleContent: View {
     @State private var previousText: String = ""  // 追踪文本变化
     @State private var displayedText: String = ""  // 打字机效果：当前显示的文本
     @State private var isTyping: Bool = false  // 是否正在打字
-    @State private var typingTaskId: UUID = UUID()  // 打字任务ID，用于取消
+    @State private var typingTask: Task<Void, Never>? = nil  // 真正可取消的打字 Task
     @State private var textOpacity: Double = 0.0  // 文本透明度，用于淡入效果
     
     // 根据展开状态自动选择模版
@@ -250,10 +250,13 @@ private struct BubbleContent: View {
                     if newValue {
                         print("⚡ Bubble expanding, waiting for animation to complete...")
                         cancelTyping()
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        // 捕获当前 text 快照，避免 0.5s 后使用过期值
+                        let snapshot = text
+                        typingTask = Task {
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            guard !Task.isCancelled else { return }
                             print("✅ Bubble expansion completed, starting typewriter effect")
-                            startTypewriterEffect(fullText: text)
+                            startTypewriterEffect(fullText: snapshot)
                         }
                     } else {
                         print("⚡ Cancelling typing and resetting displayed text")
@@ -276,9 +279,11 @@ private struct BubbleContent: View {
                             cancelTyping()
                             displayedText = ""
                             textOpacity = 0.0
-                            
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                startTypewriterEffect(fullText: newValue)
+                            let snapshot = newValue
+                            typingTask = Task {
+                                try? await Task.sleep(nanoseconds: 300_000_000)
+                                guard !Task.isCancelled else { return }
+                                startTypewriterEffect(fullText: snapshot)
                             }
                         }
                     }
@@ -304,15 +309,18 @@ private struct BubbleContent: View {
                     
                     if shouldExpand && !isExpanded {
                         print("🚀 Initial expansion triggered by shouldExpand signal")
-                        DispatchQueue.main.async {
+                        Task { @MainActor in
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 isExpanded = true
                             }
                         }
                     } else if isExpanded && !text.isEmpty {
                         print("⚡ View appeared with isExpanded=true, waiting before typewriter")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            startTypewriterEffect(fullText: text)
+                        let snapshot = text
+                        typingTask = Task {
+                            try? await Task.sleep(nanoseconds: 300_000_000)
+                            guard !Task.isCancelled else { return }
+                            startTypewriterEffect(fullText: snapshot)
                         }
                     }
                 }
@@ -329,14 +337,15 @@ private struct BubbleContent: View {
         }
     }
     private func cancelTyping() {
-        if isTyping {
-            print("🛑 Cancelling current typing task (ID: \(typingTaskId))")
-            typingTaskId = UUID()  // 生成新ID，使旧任务失效
+        if isTyping || typingTask != nil {
+            print("🛑 Cancelling current typing task")
+            typingTask?.cancel()
+            typingTask = nil
             isTyping = false
         }
     }
     
-    /// 启动打字机效果
+    /// 启动打字机效果（Task-based，真正可取消）
     private func startTypewriterEffect(fullText: String) {
         guard !isTyping else {
             print("⏸️ Typewriter already running, skipping")
@@ -345,13 +354,9 @@ private struct BubbleContent: View {
         
         isTyping = true
         displayedText = ""
-        textOpacity = 0.0  // 初始透明
+        textOpacity = 0.0
         
-        // 生成新的任务ID
-        let currentTaskId = UUID()
-        typingTaskId = currentTaskId
-        
-        print("⌨️ Starting typewriter effect (Task ID: \(currentTaskId))")
+        print("⌨️ Starting typewriter effect")
         print("   Full text length: \(fullText.count)")
         
         // 先淡入显示区域
@@ -359,42 +364,26 @@ private struct BubbleContent: View {
             textOpacity = 1.0
         }
         
-        // 分片策略：优化性能，使用更大的分片
-        let chunkSize = 100  // 每次显示100个字符（减少渲染次数）
-        let delay: TimeInterval = 0.025  // 每块之间的延迟（25ms，更快）
-        
+        let chunkSize = 100
+        let delayNs: UInt64 = 25_000_000  // 25ms
         let characters = Array(fullText)
-        var currentIndex = 0
         
-        func typeNextChunk() {
-            // 检查任务是否被取消
-            guard currentTaskId == typingTaskId else {
-                print("🚫 Typing task cancelled (ID mismatch)")
-                return
+        typingTask = Task { @MainActor in
+            var currentIndex = 0
+            while currentIndex < characters.count {
+                guard !Task.isCancelled else {
+                    print("🚫 Typing task cancelled")
+                    isTyping = false
+                    return
+                }
+                let endIndex = min(currentIndex + chunkSize, characters.count)
+                displayedText += String(characters[currentIndex..<endIndex])
+                currentIndex = endIndex
+                try? await Task.sleep(nanoseconds: delayNs)
             }
-            
-            guard currentIndex < characters.count else {
-                print("✅ Typewriter effect completed (Task ID: \(currentTaskId))")
-                isTyping = false
-                return
-            }
-            
-            // 计算本次要添加的字符数
-            let endIndex = min(currentIndex + chunkSize, characters.count)
-            let chunk = String(characters[currentIndex..<endIndex])
-            
-            // 更新显示的文本
-            displayedText += chunk
-            currentIndex = endIndex
-            
-            // 继续下一块
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                typeNextChunk()
-            }
+            print("✅ Typewriter effect completed")
+            isTyping = false
         }
-        
-        // 开始打字
-        typeNextChunk()
     }
     
     /// 处理返回按钮点击 - 重置状态

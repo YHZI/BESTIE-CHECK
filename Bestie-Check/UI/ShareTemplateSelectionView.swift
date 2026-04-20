@@ -11,7 +11,7 @@ struct ShareTemplateSelectionView: View {
     var onDismiss: () -> Void
 
     @State private var isRetakeCameraPresented: Bool = false
-    @State private var previewImage: UIImage? = nil   // 本地预览，拍照后直接替换
+    @State private var previewImage: UIImage? = nil
 
     private var canShare: Bool {
         previewImage != nil && !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -19,8 +19,9 @@ struct ShareTemplateSelectionView: View {
 
     var body: some View {
         ZStack {
-            // 实时相机背景
-            CameraPreview()
+            // 实时相机背景：保持在视图树中以避免重建，isActive=false 时暂停 session
+            // 让位给相机 picker（避免两个 AVCaptureSession 争抢前置摄像头）
+            CameraPreview(isActive: !isRetakeCameraPresented)
                 .ignoresSafeArea()
             Color.black.opacity(0.5).ignoresSafeArea()
 
@@ -37,32 +38,21 @@ struct ShareTemplateSelectionView: View {
                     .padding(.top, 12)
             }
         }
+        // composedImage 由 ShareFlowModifier 负责合成并更新，这里只需同步显示
         .onAppear {
-            // 始终从合成开始，不用原始照片作为占位
-            if let img = composedImage {
-                previewImage = img
-            } else if let photo = preCapturedImage {
-                let reply = replyText
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let composed = makeShareImage(photo: photo, replyText: reply)
-                    DispatchQueue.main.async { previewImage = composed }
-                }
-            }
+            if let img = composedImage { previewImage = img }
+        }
+        .onChange(of: composedImage) { _, newValue in
+            if let img = newValue { previewImage = img }
         }
         .fullScreenCover(isPresented: $isRetakeCameraPresented) {
             ShareCameraPicker { image in
                 isRetakeCameraPresented = false
                 guard let image else { return }
-                // 先立即显示原始照片
+                // 立即显示原始照片作为占位
                 previewImage = image
-                // 后台重新构造 share item，完成后替换
-                let reply = replyText
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let composed = makeShareImage(photo: image, replyText: reply)
-                    DispatchQueue.main.async {
-                        previewImage = composed
-                    }
-                }
+                // 通知 Modifier 重新合成（Modifier 持有 Task，可 cancel 旧任务）
+                onNewPhoto(image)
             }
             .ignoresSafeArea()
         }
@@ -111,8 +101,7 @@ struct ShareTemplateSelectionView: View {
                     .frame(width: previewW, height: previewH)
                     .overlay(
                         VStack(spacing: 10) {
-                            ProgressView()
-                                .tint(.white)
+                            ProgressView().tint(.white)
                             Text("Composing...")
                                 .font(.system(size: 13))
                                 .foregroundStyle(.white.opacity(0.6))
@@ -125,9 +114,7 @@ struct ShareTemplateSelectionView: View {
 
     private var actions: some View {
         VStack(spacing: 10) {
-            Button {
-                isRetakeCameraPresented = true
-            } label: {
+            Button { isRetakeCameraPresented = true } label: {
                 HStack {
                     Image(systemName: "camera")
                     Text("Not satisfied? Take a selfie")
