@@ -1,64 +1,60 @@
 import SwiftUI
 import UIKit
 
-enum ShareReplyTemplate: String, CaseIterable, Identifiable {
-    case original = "Original"
-    case bestie = "Bestie"
-    case short = "Short"
-
-    var id: String { rawValue }
-
-    func apply(to replyText: String) -> String {
-        let trimmed = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch self {
-        case .original:
-            return trimmed
-        case .bestie:
-            return "Bestie check: \(trimmed)"
-        case .short:
-            let words = trimmed.split(separator: " ").prefix(12)
-            let condensed = words.joined(separator: " ")
-            return condensed + (trimmed.split(separator: " ").count > 12 ? "…" : "")
-        }
-    }
-}
-
 struct ShareTemplateSelectionView: View {
     let replyText: String
     let preCapturedImage: UIImage?
-    let manualSelfie: UIImage?
+    @Binding var composedImage: UIImage?
 
     var onPickTemplate: (UIImage) -> Void
-    var onRetake: () -> Void
+    var onNewPhoto: (UIImage) -> Void
     var onDismiss: () -> Void
 
-    @State private var selectedTemplate: ShareReplyTemplate = .original
-
-    private var effectiveImage: UIImage? {
-        manualSelfie ?? preCapturedImage
-    }
+    @State private var isRetakeCameraPresented: Bool = false
+    @State private var previewImage: UIImage? = nil
 
     private var canShare: Bool {
-        effectiveImage != nil && !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        previewImage != nil && !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // 实时相机背景：保持在视图树中以避免重建，isActive=false 时暂停 session
+            // 让位给相机 picker（避免两个 AVCaptureSession 争抢前置摄像头）
+            CameraPreview(isActive: !isRetakeCameraPresented)
+                .ignoresSafeArea()
+            Color.black.opacity(0.5).ignoresSafeArea()
 
-            VStack(spacing: 16) {
+            VStack(spacing: 0) {
                 header
-
                 ScrollView {
-                    VStack(spacing: 16) {
-                        previewCard
-                        templatePicker
-                        actions
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
+                    previewCard
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
                 }
+                actions
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, UIScreen.main.bounds.height * 0.03)
+                    .padding(.top, 12)
             }
+        }
+        // composedImage 由 ShareFlowModifier 负责合成并更新，这里只需同步显示
+        .onAppear {
+            if let img = composedImage { previewImage = img }
+        }
+        .onChange(of: composedImage) { _, newValue in
+            if let img = newValue { previewImage = img }
+        }
+        .fullScreenCover(isPresented: $isRetakeCameraPresented) {
+            ShareCameraPicker { image in
+                isRetakeCameraPresented = false
+                guard let image else { return }
+                // 立即显示原始照片作为占位
+                previewImage = image
+                // 通知 Modifier 重新合成（Modifier 持有 Task，可 cancel 旧任务）
+                onNewPhoto(image)
+            }
+            .ignoresSafeArea()
         }
     }
 
@@ -73,7 +69,7 @@ struct ShareTemplateSelectionView: View {
                     .clipShape(Circle())
             }
             Spacer()
-            Text("Choose a share template")
+            Text("Share Preview")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
             Spacer()
@@ -84,100 +80,41 @@ struct ShareTemplateSelectionView: View {
     }
 
     private var previewCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(manualSelfie == nil ? "Auto photo (AI image)" : "Selfie (retake)")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.8))
+        let screen = UIScreen.main.bounds
+        let previewW = screen.width  * 0.62
+        let previewH = screen.height * 0.62
 
-            Group {
-                if let img = effectiveImage, !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    let composed = makeShareImage(photo: img, replyText: selectedTemplate.apply(to: replyText))
-                    Image(uiImage: composed)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 260)
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18)
-                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                        )
-                } else if let img = effectiveImage {
-                    Image(uiImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 260)
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18)
-                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                        )
-                } else {
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(Color.white.opacity(0.08))
-                        .frame(height: 260)
-                        .overlay(
-                            VStack(spacing: 10) {
-                                Image(systemName: "face.smiling")
-                                    .font(.system(size: 28, weight: .regular))
-                                    .foregroundStyle(.white.opacity(0.8))
-                                Text("No pre-captured photo yet.\nYou can retake a selfie.")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(.white.opacity(0.75))
-                                    .multilineTextAlignment(.center)
-                            }
-                            .padding(.horizontal, 16)
-                        )
-                }
-            }
-
-            Text("AI reply preview")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.8))
-
-            Text(selectedTemplate.apply(to: replyText).isEmpty ? "No AI reply" : selectedTemplate.apply(to: replyText))
-                .font(.system(size: 14))
-                .foregroundStyle(.white)
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-        }
-        .padding(16)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 22))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        )
-    }
-
-    private var templatePicker: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Templates")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.8))
-
-            HStack(spacing: 10) {
-                ForEach(ShareReplyTemplate.allCases) { tpl in
-                    Button {
-                        selectedTemplate = tpl
-                    } label: {
-                        Text(tpl.rawValue)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(selectedTemplate == tpl ? .black : .white)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity)
-                            .background(selectedTemplate == tpl ? Color.white : Color.white.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                }
+        return Group {
+            if let img = previewImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: previewW, height: previewH)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: previewW, height: previewH)
+                    .overlay(
+                        VStack(spacing: 10) {
+                            ProgressView().tint(.white)
+                            Text("Composing...")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                    )
             }
         }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var actions: some View {
         VStack(spacing: 10) {
-            Button(action: onRetake) {
+            Button { isRetakeCameraPresented = true } label: {
                 HStack {
                     Image(systemName: "camera")
                     Text("Not satisfied? Take a selfie")
@@ -191,9 +128,8 @@ struct ShareTemplateSelectionView: View {
             }
 
             Button {
-                guard let img = effectiveImage else { return }
-                let composed = makeShareImage(photo: img, replyText: selectedTemplate.apply(to: replyText))
-                onPickTemplate(composed)
+                guard let img = previewImage else { return }
+                onPickTemplate(img)
             } label: {
                 HStack {
                     Image(systemName: "square.and.arrow.up")
@@ -215,10 +151,9 @@ struct ShareTemplateSelectionView: View {
     ShareTemplateSelectionView(
         replyText: "Try a different lip color; the current tone is slightly cool for your undertone.",
         preCapturedImage: UIImage(systemName: "person.fill"),
-        manualSelfie: nil,
+        composedImage: .constant(nil),
         onPickTemplate: { _ in },
-        onRetake: {},
+        onNewPhoto: { _ in },
         onDismiss: {}
     )
 }
-

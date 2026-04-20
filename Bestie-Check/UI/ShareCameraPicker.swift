@@ -45,8 +45,23 @@ struct ShareCameraPicker: UIViewControllerRepresentable {
             _ picker: UIImagePickerController,
             didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
         ) {
-            let image = info[.originalImage] as? UIImage
-            onComplete(image)
+            let raw = info[.originalImage] as? UIImage
+            onComplete(raw?.normalized())
+        }
+    }
+}
+
+// MARK: - UIImage orientation fix
+
+extension UIImage {
+    /// 将任意 imageOrientation 统一绘制为 .up，避免相机照片旋转 90°
+    func normalized() -> UIImage {
+        guard imageOrientation != .up else { return self }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            draw(in: CGRect(origin: .zero, size: size))
         }
     }
 }

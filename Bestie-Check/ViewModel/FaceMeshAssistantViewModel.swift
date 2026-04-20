@@ -64,6 +64,19 @@ class FaceMeshAssistantViewModel: ObservableObject {
         bubbleAutoHideTask?.cancel()
     }
     
+    /// Share 流程打开时调用：暂停 ARSession 释放摄像头，避免与 AVCaptureSession 竞争
+    func pauseARSession() {
+        arFrameProvider.pauseSession()
+        frameTask?.cancel()
+        frameTask = nil
+    }
+    
+    /// Share 流程关闭时调用：恢复 ARSession
+    func resumeARSession() {
+        arFrameProvider.resumeSession()
+        startFrameProcessing()
+    }
+    
     // MARK: - Frame Processing Pipeline
     private func startFrameProcessing() {
         frameTask = Task { [weak self] in
@@ -99,7 +112,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
             // 推理失败或未检测到人脸 → 结束当前「有脸」会话，下次有脸会重新请求 AI
             hasRepliedForCurrentFaceSession = false
             stableFaceAnchorWallMs = nil
-            await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
+            FaceDetectionProvider.shared.updateFaceDetection(detected: false)
             if showNoFaceMessage {
                 updateBubble(text: "No face detected", autoHide: true, isAIResponse: false)
             }
@@ -108,18 +121,17 @@ class FaceMeshAssistantViewModel: ObservableObject {
         
         // 2. 提取摘要
         guard let summary = FaceLandmarkerService.extractSummary(from: result, timestampMs: timestampMs) else {
-            await setFaceDetectedState(false)
+            setFaceDetectedState(false)
             return
         }
         
-        // 如果没有检测到脸，进入无脸计数逻辑
         if !summary.hasFace {
-            await setFaceDetectedState(false)
+            setFaceDetectedState(false)
             return
         }
         
         // 检测到人脸，进入有脸计数逻辑
-        await setFaceDetectedState(true)
+        setFaceDetectedState(true)
 
         if consecutiveFaceFrames < requiredFaceFrames {
             return
@@ -178,14 +190,14 @@ class FaceMeshAssistantViewModel: ObservableObject {
         bubbleAutoHideTask?.cancel()
         
         if autoHide {
-            // 3-5 秒后自动隐藏
+            // 3-5 秒后自动隐藏；Task 取消时 sleep 抛出 CancellationError，自动退出
             let hideDelay = Double.random(in: 3.0...5.0)
-            bubbleAutoHideTask = Task {
-                try? await Task.sleep(nanoseconds: UInt64(hideDelay * 1_000_000_000))
-                if !Task.isCancelled {
-                    await MainActor.run {
-                        self.isBubbleVisible = false
-                    }
+            bubbleAutoHideTask = Task { [weak self] in
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(hideDelay * 1_000_000_000))
+                    self?.isBubbleVisible = false  // 已在 @MainActor 上，无需 MainActor.run
+                } catch {
+                    // Task was cancelled — do nothing
                 }
             }
         }
@@ -197,13 +209,13 @@ class FaceMeshAssistantViewModel: ObservableObject {
     }
     
     // MARK: - Detection Reset
-    private func setFaceDetectedState(_ detected: Bool) async {
+    private func setFaceDetectedState(_ detected: Bool) {
         if detected {
             consecutiveFaceFrames += 1
             consecutiveNoFaceFrames = 0
 
             if consecutiveFaceFrames >= requiredFaceFrames {
-                await FaceDetectionProvider.shared.updateFaceDetection(detected: true)
+                FaceDetectionProvider.shared.updateFaceDetection(detected: true)
             }
         } else {
             consecutiveNoFaceFrames += 1
@@ -212,7 +224,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
 
             if consecutiveNoFaceFrames >= requiredNoFaceFrames {
                 hasRepliedForCurrentFaceSession = false
-                await FaceDetectionProvider.shared.updateFaceDetection(detected: false)
+                FaceDetectionProvider.shared.updateFaceDetection(detected: false)
                 if showNoFaceMessage {
                     updateBubble(text: "No face detected", autoHide: true, isAIResponse: false)
                 }
@@ -240,6 +252,23 @@ class FaceMeshAssistantViewModel: ObservableObject {
         print("✅ ViewModel: Detection state reset completed")
     }
     
+    // MARK: - Post-Share Reset
+    /// 分享完成后，重置 UI 到欢迎状态：收起气泡、清空AI内容、重填默认问候
+    func resetToWelcome() {
+        bubbleAutoHideTask?.cancel()
+        shouldExpandBubble = false          // 气泡收起
+        bubbleText = ""                     // 清空 AI 内容
+        isBubbleVisible = true             // 保持可见，显示问候
+        hasRepliedForCurrentFaceSession = false  // 允许下次有脸重新触发 AI
+        stableFaceAnchorWallMs = nil
+        consecutiveFaceFrames = 0
+        consecutiveNoFaceFrames = 0
+        lastSharedImage = nil
+        errorMessage = nil
+        isLoading = false
+        // bubbleText 置空后 ContentView 的 displayText 会自动回退到 "Hello! 😊"
+    }
+
     // MARK: - Manual Trigger
     func triggerManualAnalysis() {
         // 手动触发一次分析（需要当前帧）

@@ -57,6 +57,27 @@ class ARFrameProvider: NSObject, ObservableObject {
         arSession?.pause()
         arSession = nil
     }
+    
+    /// 暂停 ARSession（释放摄像头），但保留 arSession 引用以便后续恢复
+    func pauseSession() {
+        arSession?.pause()
+        print("⏸️ ARSession paused (camera released)")
+    }
+    
+    /// 恢复 ARSession（重新占用摄像头）
+    func resumeSession() {
+        guard let arSession else { return }
+        if ARFaceTrackingConfiguration.isSupported {
+            let configuration = ARFaceTrackingConfiguration()
+            configuration.maximumNumberOfTrackedFaces = 1
+            arSession.run(configuration, options: [])
+            print("▶️ ARSession resumed (face tracking)")
+        } else {
+            let configuration = ARWorldTrackingConfiguration()
+            arSession.run(configuration, options: [])
+            print("▶️ ARSession resumed (world tracking)")
+        }
+    }
 }
 
 // MARK: - ARSessionDelegate

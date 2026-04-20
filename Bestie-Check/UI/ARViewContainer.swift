@@ -30,17 +30,24 @@ struct ARViewContainer: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: ARView, context: Context) {
-        // 根据 useRGBBackground 切换背景
+        // 根据 useRGBBackground 切换背景，仅在模式真正变化时才重新配置
         if useRGBBackground {
-            // 暂停 AR Session
-            uiView.session.pause()
-            // 启动 RGB 颜色循环动画
-            context.coordinator.startRGBAnimation()
+            if !context.coordinator.isShowingRGB {
+                context.coordinator.isShowingRGB = true
+                // 暂停 AR Session
+                uiView.session.pause()
+                // 启动 RGB 颜色循环动画
+                context.coordinator.startRGBAnimation()
+            }
         } else {
-            // 停止 RGB 动画
-            context.coordinator.stopRGBAnimation()
-            // 恢复 AR Session
-            viewModel.setupARSession(arView: uiView)
+            if context.coordinator.isShowingRGB || !context.coordinator.arSessionStarted {
+                context.coordinator.isShowingRGB = false
+                context.coordinator.arSessionStarted = true
+                // 停止 RGB 动画
+                context.coordinator.stopRGBAnimation()
+                // 恢复 AR Session（仅在切换时调用，避免每次 SwiftUI update 都重启）
+                viewModel.setupARSession(arView: uiView)
+            }
         }
     }
     
@@ -50,6 +57,9 @@ struct ARViewContainer: UIViewRepresentable {
     
     class Coordinator {
         var arView: ARView?
+        /// 防止 updateUIView 在每次 SwiftUI re-render 时重启 ARSession
+        var arSessionStarted: Bool = false
+        var isShowingRGB: Bool = false
         private var colorTimer: Timer?
         private var currentColorIndex: Int = 0
         private let rgbColors: [UIColor] = [

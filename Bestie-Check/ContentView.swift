@@ -27,6 +27,10 @@ struct ContentView: View {
     
     /// User takes a new photo for share (not the first face frame).
     @State private var isShareCameraPresented: Bool = false
+    
+    /// Share 流程打开时冻结的文案与图（避免 preview 随 ViewModel 后台刷新而跳动）
+    @State private var shareFrozenReplyText: String = ""
+    @State private var shareFrozenPreImage: UIImage? = nil
 
     
     // 测试文本内容
@@ -92,6 +96,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                         shouldExpand: $viewModel.shouldExpandBubble,
                         shareEnabled: !viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                         onShareTapped: {
+                            // 与气泡里显示的文案一致（含长文本测试模式）
+                            shareFrozenReplyText = testText
+                            shareFrozenPreImage = viewModel.lastSharedImage
                             isShareCameraPresented = true
                         }
                     )
@@ -115,7 +122,15 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 Spacer()
             }
             .zIndex(1)  // 固定 zIndex，不再动态提升
-            .shareFlow(isPresented: $isShareCameraPresented, replyText: viewModel.bubbleText, preCapturedImage: viewModel.lastSharedImage)
+            .shareFlow(isPresented: $isShareCameraPresented, isBubbleExpanded: $isBubbleExpanded, replyText: shareFrozenReplyText, preCapturedImage: shareFrozenPreImage, viewModel: viewModel)
+            .onChange(of: isShareCameraPresented) { _, sharing in
+                // 分享流程打开时暂停 ARSession，避免与 CameraPreview 争抢前置摄像头
+                if sharing {
+                    viewModel.pauseARSession()
+                } else {
+                    viewModel.resumeARSession()
+                }
+            }
             
             // 左上角返回按钮（智能模式：自动处理 ReactTextBar 状态）
             VStack {

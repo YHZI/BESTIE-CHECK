@@ -209,6 +209,8 @@ extension AIClient {
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
             return nil
         }
-        return UIImage(cgImage: cgImage)
+        // AR 前置摄像头 pixelBuffer 原始方向为 .right（顺时针 90°）
+        // 用 normalized() 统一转为 .up
+        return UIImage(cgImage: cgImage, scale: 1.0, orientation: .right).normalized()
     }
 }

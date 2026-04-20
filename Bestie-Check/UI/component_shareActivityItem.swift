@@ -102,14 +102,28 @@ private func playwriteFont(size: CGFloat, weight: CGFloat = 700) -> UIFont {
 // MARK: - Share Image Composer
 
 /// 将 AI 回复文字合成到照片上，生成可分享的图片
+/// - 注意：必须在主线程调用（需要访问 UIScreen.main）
 func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
 
-    // ── 1. Canvas 尺寸（设备屏幕比例，物理像素）──────────────────────────
+    // ── 1. Canvas 尺寸 ── 必须在主线程读取 UIScreen ────────────────────
+    assert(Thread.isMainThread, "makeShareImage must be called on the main thread to read UIScreen")
     let screen      = UIScreen.main
     let ptWidth     = screen.bounds.width
-    let ptHeight    = screen.bounds.height          // 真实屏幕比例
-    let renderScale = screen.scale                  // @2x / @3x
+    let ptHeight    = screen.bounds.height
+    let renderScale = screen.scale
 
+    // 提前在主线程捕获所有需要的值，后续可安全传到后台
+    return _renderShareImage(
+        photo: photo, replyText: replyText,
+        ptWidth: ptWidth, ptHeight: ptHeight, renderScale: renderScale
+    )
+}
+
+/// 纯渲染函数：所有参数已捕获，可在任意线程调用
+private func _renderShareImage(
+    photo: UIImage, replyText: String,
+    ptWidth: CGFloat, ptHeight: CGFloat, renderScale: CGFloat
+) -> UIImage {
     let format = UIGraphicsImageRendererFormat()
     format.scale = renderScale
     format.opaque = true
@@ -128,33 +142,13 @@ func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
         UIColor.white.setFill()
         ctx.fill(bounds)
 
-        // ── 3. 用户照片（aspect-fill，居中裁剪）─────────────────────────
-        let imgSize  = photo.size
-        let imgScale = max(ptSize.width  / max(imgSize.width,  1),
-                           ptSize.height / max(imgSize.height, 1))
-        let drawW    = imgSize.width  * imgScale
-        let drawH    = imgSize.height * imgScale
-        let drawRect = CGRect(
-            x: (ptSize.width  - drawW) / 2,
-            y: (ptSize.height - drawH) / 2,
-            width: drawW, height: drawH
-        )
-        cgCtx.saveGState()
-        cgCtx.clip(to: bounds)
-        photo.draw(in: drawRect)
-        cgCtx.restoreGState()
-
-        // ── 4. 白色蒙版（80%）────────────────────────────────────────────
-        UIColor.white.withAlphaComponent(0.80).setFill()
-        ctx.fill(bounds)
-
-        // ── 5. 品牌 header（Logo + "GOSHSHA"，水平居中）──────────────────
+        // ── 3. 品牌 header（Logo + "GOSHSHA"，水平居中）──────────────────
         let headerH:  CGFloat = ptSize.height * 0.13
-        let logoSize: CGFloat = headerH * 0.70 * 1.10   // 放大 10%
+        let logoSize: CGFloat = headerH * 0.70 * 1.10
         let brandGap: CGFloat = logoSize * 0.25
-        let centerY:  CGFloat = headerH / 2 + headerH * 0.20   // 下移 20%
+        let centerY:  CGFloat = headerH / 2 + headerH * 0.20
 
-        let brandFont = playwriteFont(size: ptSize.height * 0.10 * 0.38)  // 字体大小锁定，不随 headerH 变化
+        let brandFont = playwriteFont(size: ptSize.height * 0.10 * 0.38)
         let brandText = "GOSHSHA" as NSString
         let brandAttrs: [NSAttributedString.Key: Any] = [
             .font: brandFont,
@@ -167,90 +161,77 @@ func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
         if let logoImage = UIImage(named: "GoshshaIcon") {
             let logoW = logoSize
             let logoH = logoSize * 1.31
-            logoImage.draw(in: CGRect(
-                x: startX,
-                y: centerY - logoH / 2,
-                width: logoW, height: logoH
-            ))
+            logoImage.draw(in: CGRect(x: startX, y: centerY - logoH / 2, width: logoW, height: logoH))
         }
         brandText.draw(
-            in: CGRect(
-                x: startX + logoSize + brandGap,
-                y: centerY - brandTextSize.height / 2,
-                width: brandTextSize.width,
-                height: brandTextSize.height
-            ),
+            in: CGRect(x: startX + logoSize + brandGap, y: centerY - brandTextSize.height / 2,
+                       width: brandTextSize.width, height: brandTextSize.height),
             withAttributes: brandAttrs
         )
 
-        // ── 6. 大圆角照片方框 ─────────────────────────────────────────────
-        let boxPadding: CGFloat = ptSize.width  * 0.03    // 左右各 3% 留白
+        // ── 4. 方框尺寸计算 ───────────────────────────────────────────────
+        let boxPadding: CGFloat = ptSize.width  * 0.03
         let boxTop:     CGFloat = headerH + ptSize.height * 0.02
         let boxWidth:   CGFloat = ptSize.width  - boxPadding * 2
-        let boxBottom:  CGFloat = ptSize.height - ptSize.height * 0.03  // 底部 3% 留白
+        let boxBottom:  CGFloat = ptSize.height - ptSize.height * 0.03
         let boxHeight:  CGFloat = boxBottom - boxTop
         let boxCorner:  CGFloat = boxWidth * 0.08
         let strokeW:    CGFloat = 3.0
-
         let boxRect = CGRect(x: boxPadding, y: boxTop, width: boxWidth, height: boxHeight)
 
-        // 填充：淡灰占位色
-        let fillPath = UIBezierPath(roundedRect: boxRect, cornerRadius: boxCorner)
-        UIColor.black.withAlphaComponent(0.06).setFill()
-        fillPath.fill()
+        // ── 5. 用户照片（aspect-fill，clip 到圆角方框内部）────────────────
+        let boxClipPath = UIBezierPath(roundedRect: boxRect, cornerRadius: boxCorner)
+        cgCtx.saveGState()
+        cgCtx.addPath(boxClipPath.cgPath)
+        cgCtx.clip()
 
-        // 渐变描边：三色循环（69AC14 → 493D89 → F84C4C → 69AC14）
-        // 技巧：将描边路径扩展为 clip region，再在上面绘制渐变
+        let imgSize  = photo.size
+        let imgScale = max(boxWidth  / max(imgSize.width,  1),
+                           boxHeight / max(imgSize.height, 1))
+        let drawW    = imgSize.width  * imgScale
+        let drawH    = imgSize.height * imgScale
+        photo.draw(in: CGRect(
+            x: boxRect.minX + (boxWidth  - drawW) / 2,
+            y: boxRect.minY + (boxHeight - drawH) / 2,
+            width: drawW, height: drawH
+        ))
+        cgCtx.restoreGState()
+
+        // ── 6. 渐变描边（三色循环 69AC14 → 493D89 → F84C4C）─────────────
         let strokePath = UIBezierPath(roundedRect: boxRect, cornerRadius: boxCorner)
         strokePath.lineWidth = strokeW
 
         cgCtx.saveGState()
-
-        // 用"描边 clip"：把描边区域设为裁剪区
-        // 先 clip 到描边区域（外扩 stroke/2，内缩 stroke/2）
         cgCtx.setLineWidth(strokeW)
         cgCtx.addPath(strokePath.cgPath)
-        cgCtx.replacePathWithStrokedPath()   // 将描边路径转换为填充路径
-        cgCtx.clip()                          // clip 到描边区域
+        cgCtx.replacePathWithStrokedPath()
+        cgCtx.clip()
 
-        // 在 clip 区域内绘制锥形渐变（沿方框一圈循环）
-        // 使用线性渐变从左上 → 右下 → 左上 覆盖整个 boxRect，颜色循环
         let c1 = UIColor(red: 0x69/255.0, green: 0xAC/255.0, blue: 0x14/255.0, alpha: 1)
         let c2 = UIColor(red: 0x49/255.0, green: 0x3D/255.0, blue: 0x89/255.0, alpha: 1)
         let c3 = UIColor(red: 0xF8/255.0, green: 0x4C/255.0, blue: 0x4C/255.0, alpha: 1)
-
-        // 渐变色带：c1 → c2 → c3 → c1（循环闭合）
-        let gradColors = [c1.cgColor, c2.cgColor, c3.cgColor, c1.cgColor] as CFArray
+        let colorSpace  = CGColorSpaceCreateDeviceRGB()
+        let gradColors  = [c1.cgColor, c2.cgColor, c3.cgColor, c1.cgColor] as CFArray
         let locations: [CGFloat] = [0.0, 0.33, 0.66, 1.0]
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let gradient = CGGradient(colorsSpace: colorSpace,
-                                  colors: gradColors,
-                                  locations: locations)!
-
-        // 对角线方向渐变，覆盖整个 boxRect，让颜色环绕方框一圈
-        // 两个端点沿方框对角线，保证四条边都能看到颜色变化
-        let gradStart = CGPoint(x: boxRect.minX, y: boxRect.minY)
-        let gradEnd   = CGPoint(x: boxRect.maxX, y: boxRect.maxY)
+        let gradient = CGGradient(colorsSpace: colorSpace, colors: gradColors, locations: locations)!
         cgCtx.drawLinearGradient(gradient,
-                                  start: gradStart,
-                                  end: gradEnd,
+                                  start: CGPoint(x: boxRect.minX, y: boxRect.minY),
+                                  end:   CGPoint(x: boxRect.maxX, y: boxRect.maxY),
                                   options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-
         cgCtx.restoreGState()
 
-        // ── 7. 玻璃质感气泡（承载 AI 反馈，位于方框下半部分）─────────────
-        // 截取前 25 个单词
+        // ── 7. 玻璃质感气泡 ───────────────────────────────────────────────
         let words      = replyText.split(separator: " ").prefix(25)
         let shortReply = words.joined(separator: " ") + (replyText.split(separator: " ").count > 25 ? "…" : "")
 
         guard !shortReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        let bubblePad:    CGFloat = boxWidth  * 0.05   // 气泡与方框内壁间距
+        let bubblePad:    CGFloat = boxWidth  * 0.05
         let bubbleW:      CGFloat = boxWidth  - bubblePad * 2
-        let bubbleH:      CGFloat = boxHeight * 0.30   // 占方框高度 30%
+        let bubbleH:      CGFloat = boxHeight * 0.30
         let bubbleCorner: CGFloat = boxCorner * 0.75
         let bubbleX:      CGFloat = boxRect.minX + bubblePad
-        let bubbleY:      CGFloat = boxRect.maxY - bubblePad - bubbleH  // 紧贴方框底部
+        let bubbleY:      CGFloat = boxRect.maxY - bubblePad - bubbleH
         let bubbleRect    = CGRect(x: bubbleX, y: bubbleY, width: bubbleW, height: bubbleH)
         let bubblePath    = UIBezierPath(roundedRect: bubbleRect, cornerRadius: bubbleCorner)
 
@@ -258,29 +239,22 @@ func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
         cgCtx.addPath(bubblePath.cgPath)
         cgCtx.clip()
 
-        // 玻璃底层：白色半透明
         UIColor.white.withAlphaComponent(0.30).setFill()
         bubblePath.fill()
 
-        // 玻璃光泽：顶部高光线性渐变
         let glassColors = [UIColor.white.withAlphaComponent(0.55).cgColor,
                            UIColor.white.withAlphaComponent(0.10).cgColor] as CFArray
-        let glassGradient = CGGradient(colorsSpace: colorSpace,
-                                       colors: glassColors,
-                                       locations: [0.0, 1.0])!
+        let glassGradient = CGGradient(colorsSpace: colorSpace, colors: glassColors, locations: [0.0, 1.0])!
         cgCtx.drawLinearGradient(glassGradient,
                                   start: CGPoint(x: bubbleRect.midX, y: bubbleRect.minY),
                                   end:   CGPoint(x: bubbleRect.midX, y: bubbleRect.maxY),
                                   options: [])
-
         cgCtx.restoreGState()
 
-        // 玻璃边框：细白描边
         UIColor.white.withAlphaComponent(0.60).setStroke()
         bubblePath.lineWidth = 1.0
         bubblePath.stroke()
 
-        // 气泡内文字
         let textPadH:  CGFloat = bubbleW * 0.06
         let textPadV:  CGFloat = bubbleH * 0.12
         let textRect   = bubbleRect.insetBy(dx: textPadH, dy: textPadV)
@@ -333,18 +307,33 @@ func makeShareImagePreview(replyText: String) -> UIImage {
 
 /// 将完整的 share 流程（相机 → 合成 → 系统分享面板）作为 ViewModifier 挂载到任意 View
 struct ShareFlowModifier: ViewModifier {
-    /// 触发整个 share 流程的开关，由父视图控制
     @Binding var isPresented: Bool
-    /// AI 回复文字，用于合成图片
+    @Binding var isBubbleExpanded: Bool
     let replyText: String
-    /// App 自动抓拍的照片（用于发给 AI 的那张，优先用于分享）
     let preCapturedImage: UIImage?
+    let viewModel: FaceMeshAssistantViewModel
 
-    @State private var isShareSheetPresented: Bool = false
-    @State private var shareActivityItems: [Any] = []
-    @State private var shareItemSource: ShareImageActivityItemSource? = nil
-    @State private var isRetakeCameraPresented: Bool = false
-    @State private var lastManualSelfie: UIImage? = nil
+    @State private var composedImage: UIImage? = nil
+    @State private var composeTask: Task<Void, Never>? = nil
+
+    /// 在主线程捕获 screen 参数，然后在后台线程纯渲染，持有 Task 可随时 cancel
+    private func recompose(with photo: UIImage) {
+        composeTask?.cancel()
+        // 在主线程读取 UIScreen（安全），捕获值传入后台
+        let ptWidth     = UIScreen.main.bounds.width
+        let ptHeight    = UIScreen.main.bounds.height
+        let renderScale = UIScreen.main.scale
+        let reply       = replyText
+
+        composeTask = Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                _renderShareImage(photo: photo, replyText: reply,
+                                  ptWidth: ptWidth, ptHeight: ptHeight, renderScale: renderScale)
+            }.value
+            guard !Task.isCancelled else { return }
+            await MainActor.run { composedImage = result }
+        }
+    }
 
     func body(content: Content) -> some View {
         content
@@ -352,38 +341,53 @@ struct ShareFlowModifier: ViewModifier {
                 ShareTemplateSelectionView(
                     replyText: replyText,
                     preCapturedImage: preCapturedImage,
-                    manualSelfie: lastManualSelfie,
-                    onPickTemplate: { composedImage in
-                        isPresented = false
-                        shareItemSource?.cleanup()
-                        let source = ShareImageActivityItemSource(image: composedImage)
-                        shareItemSource = source
-                        shareActivityItems = source.map { [$0] } ?? [composedImage]
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            isShareSheetPresented = true
+                    composedImage: $composedImage,
+                    onPickTemplate: { img in
+                        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                              let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+                        else { return }
+
+                        var top = root
+                        while let presented = top.presentedViewController { top = presented }
+
+                        let vc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
+                        vc.completionWithItemsHandler = { _, _, _, _ in
+                            DispatchQueue.main.async {
+                                isPresented = false
+                                isBubbleExpanded = false
+                                viewModel.resetToWelcome()
+                            }
                         }
+                        if let popover = vc.popoverPresentationController {
+                            popover.sourceView = top.view
+                            popover.sourceRect = CGRect(x: top.view.bounds.midX,
+                                                        y: top.view.bounds.midY,
+                                                        width: 0, height: 0)
+                            popover.permittedArrowDirections = []
+                        }
+                        top.present(vc, animated: true)
                     },
-                    onRetake: {
-                        isRetakeCameraPresented = true
+                    onNewPhoto: { photo in
+                        recompose(with: photo)
                     },
                     onDismiss: {
+                        composeTask?.cancel()
                         isPresented = false
                     }
                 )
-                .fullScreenCover(isPresented: $isRetakeCameraPresented) {
-                    ShareCameraPicker { image in
-                        isRetakeCameraPresented = false
-                        lastManualSelfie = image
+                .onAppear {
+                    // 只在首次打开时合成，如果已有缓存直接用
+                    if composedImage == nil, let photo = preCapturedImage {
+                        recompose(with: photo)
                     }
-                    .ignoresSafeArea()
                 }
             }
-            .sheet(isPresented: $isShareSheetPresented, onDismiss: {
-                shareItemSource?.cleanup()
-                shareItemSource = nil
-                shareActivityItems = []
-            }) {
-                ShareSheet(activityItems: shareActivityItems)
+            .onChange(of: isPresented) { _, newValue in
+                if !newValue {
+                    // share 流程关闭时取消未完成的合成任务
+                    composeTask?.cancel()
+                    composedImage = nil   // 下次打开重新合成
+                }
             }
     }
 }
@@ -391,12 +395,7 @@ struct ShareFlowModifier: ViewModifier {
 // MARK: - View Extension
 
 extension View {
-    /// 将完整 share 流程挂载到当前 View
-    /// - Parameters:
-    ///   - isPresented: 设为 true 即触发流程（拍照 → 合成 → 分享面板）
-    ///   - replyText: AI 回复文字，嵌入合成图片
-    ///   - preCapturedImage: App 自动抓拍的照片（用于发给 AI 的那张，优先用于分享）
-    func shareFlow(isPresented: Binding<Bool>, replyText: String, preCapturedImage: UIImage?) -> some View {
-        modifier(ShareFlowModifier(isPresented: isPresented, replyText: replyText, preCapturedImage: preCapturedImage))
+    func shareFlow(isPresented: Binding<Bool>, isBubbleExpanded: Binding<Bool>, replyText: String, preCapturedImage: UIImage?, viewModel: FaceMeshAssistantViewModel) -> some View {
+        modifier(ShareFlowModifier(isPresented: isPresented, isBubbleExpanded: isBubbleExpanded, replyText: replyText, preCapturedImage: preCapturedImage, viewModel: viewModel))
     }
 }
