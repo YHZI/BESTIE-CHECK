@@ -122,7 +122,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 Spacer()
             }
             .zIndex(1)  // 固定 zIndex，不再动态提升
-            .shareFlow(isPresented: $isShareCameraPresented, replyText: shareFrozenReplyText, preCapturedImage: shareFrozenPreImage)
+            .shareFlow(isPresented: $isShareCameraPresented, isBubbleExpanded: $isBubbleExpanded, replyText: shareFrozenReplyText, preCapturedImage: shareFrozenPreImage, viewModel: viewModel)
             
             // 左上角返回按钮（智能模式：自动处理 ReactTextBar 状态）
             VStack {

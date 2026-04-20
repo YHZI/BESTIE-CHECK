@@ -240,6 +240,23 @@ class FaceMeshAssistantViewModel: ObservableObject {
         print("✅ ViewModel: Detection state reset completed")
     }
     
+    // MARK: - Post-Share Reset
+    /// 分享完成后，重置 UI 到欢迎状态：收起气泡、清空AI内容、重填默认问候
+    func resetToWelcome() {
+        bubbleAutoHideTask?.cancel()
+        shouldExpandBubble = false          // 气泡收起
+        bubbleText = ""                     // 清空 AI 内容
+        isBubbleVisible = true             // 保持可见，显示问候
+        hasRepliedForCurrentFaceSession = false  // 允许下次有脸重新触发 AI
+        stableFaceAnchorWallMs = nil
+        consecutiveFaceFrames = 0
+        consecutiveNoFaceFrames = 0
+        lastSharedImage = nil
+        errorMessage = nil
+        isLoading = false
+        // bubbleText 置空后 ContentView 的 displayText 会自动回退到 "Hello! 😊"
+    }
+
     // MARK: - Manual Trigger
     func triggerManualAnalysis() {
         // 手动触发一次分析（需要当前帧）

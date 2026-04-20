@@ -302,8 +302,10 @@ func makeShareImagePreview(replyText: String) -> UIImage {
 /// 将完整的 share 流程（相机 → 合成 → 系统分享面板）作为 ViewModifier 挂载到任意 View
 struct ShareFlowModifier: ViewModifier {
     @Binding var isPresented: Bool
+    @Binding var isBubbleExpanded: Bool
     let replyText: String
     let preCapturedImage: UIImage?
+    let viewModel: FaceMeshAssistantViewModel
 
     @State private var composedImage: UIImage? = nil
 
@@ -322,25 +324,33 @@ struct ShareFlowModifier: ViewModifier {
                     preCapturedImage: preCapturedImage,
                     composedImage: $composedImage,
                     onPickTemplate: { img in
-                        // 关闭 fullScreenCover，动画结束后直接从 window 弹出系统分享面板
-                        // 不用 SwiftUI .sheet，避免与 fullScreenCover 的层级冲突
-                        isPresented = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
-                            let vc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
-                            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                               let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController {
-                                var top = root
-                                while let presented = top.presentedViewController { top = presented }
-                                if let popover = vc.popoverPresentationController {
-                                    popover.sourceView = top.view
-                                    popover.sourceRect = CGRect(x: top.view.bounds.midX,
-                                                                y: top.view.bounds.midY,
-                                                                width: 0, height: 0)
-                                    popover.permittedArrowDirections = []
-                                }
-                                top.present(vc, animated: true)
+                        // 先找到当前最顶层 VC（即 fullScreenCover 的 VC）
+                        // 把 UIActivityViewController present 在它上面
+                        // 用户完成/取消分享后，在 completionHandler 里再关闭 fullScreenCover
+                        // 这样顺序是：share sheet → 用户操作 → dismiss sheet → dismiss fullScreenCover → 回主页
+                        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                              let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+                        else { return }
+
+                        var top = root
+                        while let presented = top.presentedViewController { top = presented }
+
+                        let vc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
+                        vc.completionWithItemsHandler = { _, _, _, _ in
+                            DispatchQueue.main.async {
+                                isPresented = false
+                                isBubbleExpanded = false   // ← 气泡收起
+                                viewModel.resetToWelcome()
                             }
                         }
+                        if let popover = vc.popoverPresentationController {
+                            popover.sourceView = top.view
+                            popover.sourceRect = CGRect(x: top.view.bounds.midX,
+                                                        y: top.view.bounds.midY,
+                                                        width: 0, height: 0)
+                            popover.permittedArrowDirections = []
+                        }
+                        top.present(vc, animated: true)
                     },
                     onNewPhoto: { photo in
                         // Use Photo 点击后：重新合成，绑定自动刷新预览
@@ -364,12 +374,7 @@ struct ShareFlowModifier: ViewModifier {
 // MARK: - View Extension
 
 extension View {
-    /// 将完整 share 流程挂载到当前 View
-    /// - Parameters:
-    ///   - isPresented: 设为 true 即触发流程（拍照 → 合成 → 分享面板）
-    ///   - replyText: AI 回复文字，嵌入合成图片
-    ///   - preCapturedImage: App 自动抓拍的照片（用于发给 AI 的那张，优先用于分享）
-    func shareFlow(isPresented: Binding<Bool>, replyText: String, preCapturedImage: UIImage?) -> some View {
-        modifier(ShareFlowModifier(isPresented: isPresented, replyText: replyText, preCapturedImage: preCapturedImage))
+    func shareFlow(isPresented: Binding<Bool>, isBubbleExpanded: Binding<Bool>, replyText: String, preCapturedImage: UIImage?, viewModel: FaceMeshAssistantViewModel) -> some View {
+        modifier(ShareFlowModifier(isPresented: isPresented, isBubbleExpanded: isBubbleExpanded, replyText: replyText, preCapturedImage: preCapturedImage, viewModel: viewModel))
     }
 }
