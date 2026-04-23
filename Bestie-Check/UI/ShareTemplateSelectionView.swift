@@ -11,7 +11,9 @@ struct ShareTemplateSelectionView: View {
     var onDismiss: () -> Void
 
     @State private var isRetakeCameraPresented: Bool = false
+    @State private var isGuidePresented: Bool = false
     @State private var previewImage: UIImage? = nil
+    @State private var isShowingRetakeReminder: Bool = false
 
     private var canShare: Bool {
         previewImage != nil && !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -28,9 +30,17 @@ struct ShareTemplateSelectionView: View {
             VStack(spacing: 0) {
                 header
                 ScrollView {
+                    retakeReminder
+                        .padding(.horizontal, 20)
+                        .padding(.top, 14)
+
                     previewCard
                         .padding(.horizontal, 20)
                         .padding(.vertical, 16)
+
+                    replyPromptCard
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 8)
                 }
                 actions
                     .padding(.horizontal, 20)
@@ -44,6 +54,12 @@ struct ShareTemplateSelectionView: View {
         }
         .onChange(of: composedImage) { _, newValue in
             if let img = newValue { previewImage = img }
+            // Retake "in progress" reminder ends once a composed image is ready.
+            if newValue != nil, isShowingRetakeReminder {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    isShowingRetakeReminder = false
+                }
+            }
         }
         .fullScreenCover(isPresented: $isRetakeCameraPresented) {
             ShareCameraPicker { image in
@@ -51,11 +67,67 @@ struct ShareTemplateSelectionView: View {
                 guard let image else { return }
                 // 立即显示原始照片作为占位
                 previewImage = image
+                // Retake reminder: keep visible while recomposing.
+                isShowingRetakeReminder = true
                 // 通知 Modifier 重新合成（Modifier 持有 Task，可 cancel 旧任务）
                 onNewPhoto(image)
             }
             .ignoresSafeArea()
         }
+        .fullScreenCover(isPresented: $isGuidePresented) {
+            // Placeholder guide page (intentionally blank).
+            ShareGuidePlaceholderView(
+                onBack: {
+                    // Back returns to the app auto photo step (this screen).
+                    isGuidePresented = false
+                },
+                onNext: {
+                    // Flow scaffold:
+                    // app auto photo -> guide placeholder page -> user selfie (camera picker) -> app auto photo (recompose)
+                    isGuidePresented = false
+                    isRetakeCameraPresented = true
+                }
+            )
+            .ignoresSafeArea()
+        }
+    }
+
+    private var retakeReminder: some View {
+        Group {
+            if isShowingRetakeReminder {
+                HStack(spacing: 10) {
+                    ProgressView().tint(.white)
+                    Text("Retaking… We’re updating your share preview.")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private var replyPromptCard: some View {
+        let prompt = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Your feedback")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+
+            Text(prompt.isEmpty ? "…" : prompt)
+                .font(.system(size: 14))
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private var header: some View {
@@ -114,7 +186,11 @@ struct ShareTemplateSelectionView: View {
 
     private var actions: some View {
         VStack(spacing: 10) {
-            Button { isRetakeCameraPresented = true } label: {
+            Button {
+                // If user isn't satisfied, show a placeholder guide page first,
+                // then allow them to take a selfie.
+                isGuidePresented = true
+            } label: {
                 HStack {
                     Image(systemName: "camera")
                     Text("Not satisfied? Take a selfie")

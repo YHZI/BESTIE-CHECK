@@ -60,6 +60,9 @@ struct BackButton: View {
             }
             .scaleEffect(isPressed ? 0.9 : 1.0)
             .opacity(isPressed ? 0.7 : 1.0)
+            // Ensure minimum tap target without changing visual size.
+            .frame(width: max(44, diameter), height: max(44, diameter))
+            .contentShape(Circle())
         }
         .buttonStyle(PlainButtonStyle())
         .simultaneousGesture(

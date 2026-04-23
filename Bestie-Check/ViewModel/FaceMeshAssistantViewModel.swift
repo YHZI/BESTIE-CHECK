@@ -28,6 +28,13 @@ class FaceMeshAssistantViewModel: ObservableObject {
     @Published var throttleIntervalMs: Int = 200  // 默认 5fps (1000/200)
     @Published var uploadFullImage: Bool = true  // 默认上传人脸图给 AI，与 landmark 数据一起获得更好回答
     @Published var showNoFaceMessage: Bool = true
+
+    // MARK: - Reanalysis control
+    /// Only auto-analyze once per app launch (first time opening the app).
+    /// After that, analysis is allowed only when the user taps the Reanalysis button.
+    @Published private(set) var canRequestReanalysis: Bool = true
+    private var hasAutoAnalyzedThisLaunch: Bool = false
+    private var isManualReanalysisArmed: Bool = false
     
     // MARK: - Private Properties
     private let arFrameProvider = ARFrameProvider()
@@ -149,6 +156,13 @@ class FaceMeshAssistantViewModel: ObservableObject {
         if hasRepliedForCurrentFaceSession {
             return
         }
+
+        // App-level gating:
+        // - Allow exactly one automatic analysis per app launch.
+        // - After that, require the user to explicitly arm a manual reanalysis.
+        if hasAutoAnalyzedThisLaunch && !isManualReanalysisArmed {
+            return
+        }
         
         // 3. 稳定有脸满 1 秒后，用当前帧调用 AI 一次
         hasRepliedForCurrentFaceSession = true
@@ -169,6 +183,12 @@ class FaceMeshAssistantViewModel: ObservableObject {
             )
             updateBubble(text: aiReply, autoHide: true, isAIResponse: true)
             isLoading = false
+
+            // Mark that we've consumed the one-time auto analysis for this launch.
+            hasAutoAnalyzedThisLaunch = true
+            // Manual reanalysis is one-shot.
+            isManualReanalysisArmed = false
+            canRequestReanalysis = true
         } catch {
             // 请求失败时允许下次有脸再试
             hasRepliedForCurrentFaceSession = false
@@ -251,6 +271,25 @@ class FaceMeshAssistantViewModel: ObservableObject {
         
         print("✅ ViewModel: Detection state reset completed")
     }
+
+    /// User-facing reanalysis trigger.
+    /// Arms exactly one new analysis run (when a face is stable again).
+    func requestReanalysis() {
+        guard !isLoading else { return }
+        isManualReanalysisArmed = true
+        canRequestReanalysis = false
+        // Reset per-face-session gating so the next stable face can trigger.
+        hasRepliedForCurrentFaceSession = false
+        stableFaceAnchorWallMs = nil
+        consecutiveFaceFrames = 0
+        consecutiveNoFaceFrames = 0
+
+        // Re-enable the button shortly after to avoid sticky disabled state.
+        // (We still keep the analysis itself gated by isManualReanalysisArmed.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            self?.canRequestReanalysis = true
+        }
+    }
     
     // MARK: - Post-Share Reset
     /// 分享完成后，重置 UI 到欢迎状态：收起气泡、清空AI内容、重填默认问候
@@ -259,7 +298,9 @@ class FaceMeshAssistantViewModel: ObservableObject {
         shouldExpandBubble = false          // 气泡收起
         bubbleText = ""                     // 清空 AI 内容
         isBubbleVisible = true             // 保持可见，显示问候
-        hasRepliedForCurrentFaceSession = false  // 允许下次有脸重新触发 AI
+        // Do NOT re-enable automatic analysis here.
+        // Auto analysis should only happen once per app launch.
+        hasRepliedForCurrentFaceSession = false
         stableFaceAnchorWallMs = nil
         consecutiveFaceFrames = 0
         consecutiveNoFaceFrames = 0
