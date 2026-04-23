@@ -22,6 +22,10 @@ struct ShareCameraPicker: UIViewControllerRepresentable {
         picker.allowsEditing = false
         if UIImagePickerController.isSourceTypeAvailable(.camera) {
             picker.sourceType = .camera
+            // Prefer front camera for selfie flow.
+            if UIImagePickerController.isCameraDeviceAvailable(.front) {
+                picker.cameraDevice = .front
+            }
         } else {
             picker.sourceType = .photoLibrary
         }

@@ -118,6 +118,18 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 }
                 .padding(.top, 60)
                 .padding(.horizontal, 20)
+
+                // fun fact (placeholder slot)
+                // Intentionally blank: reserved for a future "Fun Fact" feature module under the AI reply bubble.
+                FunFactSlot()
+
+                // Reanalysis button (scaffold): after the first auto analysis, the app will not auto-analyze again
+                // unless the user explicitly taps this button.
+                ReanalysisButton(
+                    isLoading: viewModel.isLoading,
+                    isEnabled: viewModel.canRequestReanalysis,
+                    onTap: { viewModel.requestReanalysis() }
+                )
                 
                 Spacer()
             }
@@ -167,8 +179,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                             print("📍 Back button custom action executed")
                         }
                     )
-                    .padding(.leading, 40)
-                    .padding(.top, 24)
+                    // Keep it out of the notch/status bar, and avoid overlapping other overlays.
+                    .padding(.leading, 16)
+                    .padding(.top, 8)
                     
                     Spacer()
                 }
@@ -228,6 +241,38 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
         .onDisappear {
             viewModel.stopARSession()
         }
+    }
+}
+
+// MARK: - fun fact placeholder slot
+private struct FunFactSlot: View {
+    var body: some View {
+        // Placeholder container for future implementation.
+        // Kept visually empty to avoid changing current UI.
+        Color.clear.frame(height: 0)
+    }
+}
+
+private struct ReanalysisButton: View {
+    var isLoading: Bool
+    var isEnabled: Bool
+    var onTap: () -> Void
+
+    var body: some View {
+        Button {
+            onTap()
+        } label: {
+            Text("Reanalysis")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.12))
+                .clipShape(Capsule())
+        }
+        .disabled(isLoading || !isEnabled)
+        .opacity((isLoading || !isEnabled) ? 0.55 : 1.0)
+        .padding(.top, 10)
     }
 }
 
