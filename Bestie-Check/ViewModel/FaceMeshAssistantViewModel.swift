@@ -166,8 +166,16 @@ class FaceMeshAssistantViewModel: ObservableObject {
         
         // 3. 稳定有脸满 1 秒后，用当前帧调用 AI 一次
         hasRepliedForCurrentFaceSession = true
+        let wasManualReanalysis = isManualReanalysisArmed
+        // Consume the manual trigger immediately so we don't auto-fire repeatedly on subsequent frames.
+        isManualReanalysisArmed = false
+        // Consume the one-time auto analysis as soon as we start an attempt.
+        if !hasAutoAnalyzedThisLaunch && !wasManualReanalysis {
+            hasAutoAnalyzedThisLaunch = true
+        }
         isLoading = true
         errorMessage = nil
+        canRequestReanalysis = false
         
         do {
             let imageBase64 = uploadFullImage ? AIClient.pixelBufferToBase64(pixelBuffer) : nil
@@ -183,16 +191,11 @@ class FaceMeshAssistantViewModel: ObservableObject {
             )
             updateBubble(text: aiReply, autoHide: true, isAIResponse: true)
             isLoading = false
-
-            // Mark that we've consumed the one-time auto analysis for this launch.
-            hasAutoAnalyzedThisLaunch = true
-            // Manual reanalysis is one-shot.
-            isManualReanalysisArmed = false
             canRequestReanalysis = true
         } catch {
-            // 请求失败时允许下次有脸再试
-            hasRepliedForCurrentFaceSession = false
+            // 请求失败：不自动重试（避免在同一次会话里反复触发），交给用户点 Reanalysis 再来一次。
             isLoading = false
+            canRequestReanalysis = true
             errorMessage = "AI API Error: \(error.localizedDescription)"
             print("❌ AI API error: \(error)")
         }
@@ -283,12 +286,6 @@ class FaceMeshAssistantViewModel: ObservableObject {
         stableFaceAnchorWallMs = nil
         consecutiveFaceFrames = 0
         consecutiveNoFaceFrames = 0
-
-        // Re-enable the button shortly after to avoid sticky disabled state.
-        // (We still keep the analysis itself gated by isManualReanalysisArmed.)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            self?.canRequestReanalysis = true
-        }
     }
     
     // MARK: - Post-Share Reset
