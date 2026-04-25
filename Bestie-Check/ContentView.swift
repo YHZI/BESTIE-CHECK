@@ -10,8 +10,9 @@ import RealityKit
 import Combine
 
 struct ContentView: View {
-    @StateObject private var viewModel = FaceMeshAssistantViewModel()
+    @StateObject private var viewModel: FaceMeshAssistantViewModel
     @ObservedObject private var faceDetectionProvider = FaceDetectionProvider.shared
+    var onAppReady: (() -> Void)? = nil
     
     // 气泡框展开状态
     @State private var isBubbleExpanded: Bool = false
@@ -44,6 +45,11 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
         }
     }
     
+    init(viewModel: FaceMeshAssistantViewModel = FaceMeshAssistantViewModel(), onAppReady: (() -> Void)? = nil) {
+        self._viewModel = StateObject(wrappedValue: viewModel)
+        self.onAppReady = onAppReady
+    }
+
     var body: some View {
         ZStack {
             // AR 画面（全屏）
@@ -237,6 +243,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
         }
         .onAppear {
             // ViewModel 初始化时已启动处理
+            onAppReady?()
         }
         .onDisappear {
             viewModel.stopARSession()

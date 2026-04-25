@@ -17,7 +17,7 @@ struct Bestie_CheckApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            LaunchLoadingContainerView()
         }
     }
 }
