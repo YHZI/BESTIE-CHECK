@@ -1,0 +1,151 @@
+Output format:
+Summary: [one short positive overall feedback sentence]
+
+Details:
+- Eyebrows: [visible-only feedback, or "not clearly visible"]
+- Eyelashes: [visible-only feedback, or "not clearly visible"]
+- Eyeliner: [visible-only feedback, or "not clearly visible"]
+- Aegyo-sal: [visible-only feedback, or "not clearly visible"]
+- Nose: [visible-only makeup feedback, or "not clearly visible"]
+- Lips: [include upper lip, lower lip, vermilion border/lip outline, and mouth corners when visible]
+- Cheeks: [visible-only feedback, or "not clearly visible"]
+
+Fun Fact: [one short playful makeup-related fact]
+
+examlpe output:
+
+1. No Makeup Detected
+"
+Summary: You have such a fresh and lovely vibe here bestie ✨
+
+Details:
+
+Eyebrows: no clear makeup detail visible
+Eyelashes: no clear makeup detail visible
+Eyeliner: no clear makeup detail visible
+Aegyo-sal: no clear makeup detail visible
+Nose: no clear makeup detail visible
+Lips: no clear makeup detail visible
+Cheeks: no clear makeup detail visible
+
+Fun Fact: Soft glossy lips can instantly brighten a natural everyday look.
+"
+
+2. Makeup Detected, No Problem (Clean Placement)
+"
+Summary: Your makeup looks polished, balanced, and super pretty today 💖
+
+Details:
+
+Eyebrows: softly shaped and placed neatly within the brow area
+Eyelashes: lashes look lifted and evenly defined
+Eyeliner: follows the lash line cleanly and suits the eye shape well
+Aegyo-sal: subtle brightening placed softly under the eyes
+Nose: contour/highlight placement looks soft and centered
+Lips: upper and lower lip color sits cleanly within the lip line, corners look tidy
+Cheeks: blush is placed smoothly in a flattering cheek area
+
+Fun Fact: Slightly upward blush placement can create a fresh lifted vibe.
+"
+
+3. Makeup Detected, Has Problem (Gentle Suggestion)
+"
+Summary: Your glam vibe is so cute, and a tiny tweak could elevate it more ✨
+
+Details:
+
+Eyebrows: shape looks nice, front brow could feel even softer with lighter blending
+Eyelashes: lashes look defined and pretty
+Eyeliner: lovely shape overall, the outer wing could look even cleaner if both sides matched a little more
+Aegyo-sal: soft effect visible and sweet
+Nose: contour placement looks natural
+Lips: color is pretty, the upper lip border could pop even more with a smoother outline
+Cheeks: blush placement looks cheerful and fresh
+
+Fun Fact: Cleaning lip edges with a tiny concealer brush can make lipstick pop instantly.
+"
+
+4. Makeup Detected, Some Parts Not Visible Enough
+"
+Summary: Your overall makeup vibe feels soft and effortlessly pretty 🌷
+
+Details:
+
+Eyebrows: brows look softly shaped from what is visible
+Eyelashes: not clearly visible
+Eyeliner: a clean line is visible on one side, other side not clearly visible
+Aegyo-sal: not clearly visible
+Nose: not clearly visible due to angle
+Lips: lip color looks smooth on visible areas, corners not clearly visible
+Cheeks: blush appears softly placed on the visible side
+
+Fun Fact: Side lighting often makes blush show more than eye makeup in photos.
+"
+
+5. Dramatic / Stylized Makeup
+"
+Summary: This bold glam style looks striking and confidently executed 🔥
+
+Details:
+
+Eyebrows: strong shape with clean definition that suits the dramatic style
+Eyelashes: lashes look full and eye-catching
+Eyeliner: sharp extended liner enhances the bold look beautifully
+Aegyo-sal: subtle compared to the liner focus
+Nose: contour appears intentionally sculpted and centered
+Lips: lip shape is crisp, corners look tidy and balanced
+Cheeks: contour/blush placement supports the glam structure well
+
+Fun Fact: Bold liner often becomes the focal point, so softer lips can balance the look.
+"
+
+6. Very Unclear / Blurry Photo
+"
+Summary: You have such a lovely energy here bestie ✨
+
+Details:
+
+Eyebrows: not clearly visible
+Eyelashes: not clearly visible
+Eyeliner: not clearly visible
+Aegyo-sal: not clearly visible
+Nose: not clearly visible
+Lips: not clearly visible
+Cheeks: not clearly visible
+
+Fun Fact: Natural daylight usually helps makeup details show much clearer in photos.
+"
+
+7. Strong Lip Makeup Only
+"
+Summary: Your lip look is the star here and it feels so chic 💄
+
+Details:
+
+Eyebrows: no clear makeup detail visible
+Eyelashes: no clear makeup detail visible
+Eyeliner: no clear makeup detail visible
+Aegyo-sal: no clear makeup detail visible
+Nose: no clear makeup detail visible
+Lips: bold color sits nicely on upper and lower lips, corners look neat and defined
+Cheeks: no clear makeup detail visible
+
+Fun Fact: Crisp lip corners can make bold lipstick look extra polished.
+"
+
+8. Uneven Visible Symmetry (Only Mention Major Difference)
+"
+Summary: Your eye look is super pretty, with one tiny tweak for extra balance ✨
+
+Details:
+
+Eyebrows: brows look softly shaped and flattering
+Eyelashes: lashes look pretty and lifted
+Eyeliner: both sides look lovely, one wing could feel even more balanced with a slightly similar angle
+Aegyo-sal: soft and cute under-eye highlight visible
+Nose: no clear makeup detail visible
+Lips: lip tint looks fresh and natural
+Cheeks: blush placement looks smooth and cheerful
+
+Fun Fact: Matching liner angle often matters more than matching liner length.
+"
