@@ -10,6 +10,7 @@ struct LaunchLoadingContainerView: View {
 
     @State private var contentDidAppear: Bool = false
     @State private var isLoadingVisible: Bool = true
+    @State private var contentOpacity: Double = 0
     @State private var progress: Double = 0
 
     var body: some View {
@@ -18,16 +19,18 @@ struct LaunchLoadingContainerView: View {
             ContentView(viewModel: viewModel, onAppReady: {
                 contentDidAppear = true
             })
-            .opacity(isLoadingVisible ? 0.0 : 1.0)
+            .opacity(contentOpacity)
             .allowsHitTesting(!isLoadingVisible)
 
             if isLoadingVisible {
                 LaunchLoadingOverlay(progress: progress)
                     .transition(.opacity)
-                    .task {
-                        await runProgressSequence()
-                    }
             }
+        }
+        // Attach the task to the container (not the overlay) so it isn't cancelled
+        // when isLoadingVisible flips to false and the overlay leaves the hierarchy.
+        .task {
+            await runProgressSequence()
         }
     }
 
@@ -60,6 +63,11 @@ struct LaunchLoadingContainerView: View {
 
         setProgress(100)
         try? await Task.sleep(nanoseconds: 350_000_000)
+        // Pre-render ContentView before fading out overlay to avoid white flash
+        withAnimation(.easeInOut(duration: 0.2)) {
+            contentOpacity = 1.0
+        }
+        try? await Task.sleep(nanoseconds: 200_000_000)
         withAnimation(.easeInOut(duration: 0.25)) {
             isLoadingVisible = false
         }
@@ -73,23 +81,23 @@ private struct LaunchLoadingOverlay: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 14) {
-                Text("Loading…")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+            VStack(spacing: 20) {
+                Image("LaunchIcon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 96, height: 96)
 
-                ProgressView(value: progress, total: 100)
-                    .progressViewStyle(.linear)
-                    .tint(.white)
-                    .frame(width: 220)
+                VStack(spacing: 10) {
+                    ProgressView(value: progress, total: 100)
+                        .progressViewStyle(.linear)
+                        .tint(.white)
+                        .frame(width: 220)
 
-                Text("\(Int(progress))%")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.75))
+                    Text("\(Int(progress))%")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
             }
-            .padding(20)
-            .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 18))
         }
     }
 }

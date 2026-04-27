@@ -33,6 +33,9 @@ class FaceMeshAssistantViewModel: ObservableObject {
     /// Only auto-analyze once per app launch (first time opening the app).
     /// After that, analysis is allowed only when the user taps the Reanalysis button.
     @Published private(set) var canRequestReanalysis: Bool = true
+    /// Whether the app has completed at least one analysis attempt this launch.
+    /// Used by UI to decide when to show the "Re-scan" entry point.
+    @Published private(set) var hasCompletedFirstAnalysis: Bool = false
     private var hasAutoAnalyzedThisLaunch: Bool = false
     private var isManualReanalysisArmed: Bool = false
     
@@ -176,6 +179,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         canRequestReanalysis = false
+        hasCompletedFirstAnalysis = true
         
         do {
             let imageBase64 = uploadFullImage ? AIClient.pixelBufferToBase64(pixelBuffer) : nil

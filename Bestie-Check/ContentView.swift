@@ -10,9 +10,8 @@ import RealityKit
 import Combine
 
 struct ContentView: View {
-    @StateObject private var viewModel: FaceMeshAssistantViewModel
+    @StateObject private var viewModel = FaceMeshAssistantViewModel()
     @ObservedObject private var faceDetectionProvider = FaceDetectionProvider.shared
-    var onAppReady: (() -> Void)? = nil
     
     // 气泡框展开状态
     @State private var isBubbleExpanded: Bool = false
@@ -33,6 +32,13 @@ struct ContentView: View {
     @State private var shareFrozenReplyText: String = ""
     @State private var shareFrozenPreImage: UIImage? = nil
 
+    /// FunFact bubble visibility
+    @State private var showFunFact: Bool = false
+    /// LogoFrame breathing glow — true after FunFact is dismissed
+    @State private var logoGlowing: Bool = false
+
+    var onAppReady: (() -> Void)? = nil
+
     
     // 测试文本内容
     var testText: String {
@@ -45,11 +51,6 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
         }
     }
     
-    init(viewModel: FaceMeshAssistantViewModel = FaceMeshAssistantViewModel(), onAppReady: (() -> Void)? = nil) {
-        self._viewModel = StateObject(wrappedValue: viewModel)
-        self.onAppReady = onAppReady
-    }
-
     var body: some View {
         ZStack {
             // AR 画面（全屏）
@@ -118,24 +119,17 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     LogoFrame(
                         horizontalOffset: -6,
                         verticalOffset: 0,
-                        imageScale: 1.2
+                        imageScale: 1.2,
+                        isGlowing: logoGlowing,
+                        onTap: logoGlowing ? {
+                            logoGlowing = false
+                            showFunFact = true
+                        } : nil
                     )
                         .frame(height: 120)
                 }
                 .padding(.top, 60)
                 .padding(.horizontal, 20)
-
-                // fun fact (placeholder slot)
-                // Intentionally blank: reserved for a future "Fun Fact" feature module under the AI reply bubble.
-                FunFactSlot()
-
-                // Reanalysis button (scaffold): after the first auto analysis, the app will not auto-analyze again
-                // unless the user explicitly taps this button.
-                ReanalysisButton(
-                    isLoading: viewModel.isLoading,
-                    isEnabled: viewModel.canRequestReanalysis,
-                    onTap: { viewModel.requestReanalysis() }
-                )
                 
                 Spacer()
             }
@@ -185,9 +179,8 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                             print("📍 Back button custom action executed")
                         }
                     )
-                    // Keep it out of the notch/status bar, and avoid overlapping other overlays.
-                    .padding(.leading, 16)
-                    .padding(.top, 8)
+                    .padding(.leading, 40)
+                    .padding(.top, 24)
                     
                     Spacer()
                 }
@@ -202,7 +195,8 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     viewModel: viewModel,
                     isLongTextMode: $isLongTextMode,
                     showViewFinderScan: $showViewFinderScan,
-                    useRGBBackground: $useRGBBackground
+                    useRGBBackground: $useRGBBackground,
+                    showFunFact: $showFunFact
                 )
             }
             .zIndex(1000)  // 始终在最前端
@@ -240,6 +234,27 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                         }
                 }
             }
+
+            // ── FunFact floating bubble (draggable overlay) ──────────────
+            if showFunFact {
+                FunFactBubble(
+                    text: "Fun Fact ✨",
+                    feedbackText: viewModel.bubbleText.isEmpty ? nil : viewModel.bubbleText,
+                    url: nil,
+                    onDismiss: {
+                        showFunFact = false
+                        withAnimation(.easeIn(duration: 0.2)) {
+                            logoGlowing = true
+                        }
+                    }
+                )
+                .padding(.leading, 16)
+                .padding(.bottom, 180)
+                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                       alignment: .bottomLeading)
+                .allowsHitTesting(true)
+                .zIndex(10)
+            }
         }
         .onAppear {
             // ViewModel 初始化时已启动处理
@@ -249,37 +264,10 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             viewModel.stopARSession()
         }
     }
-}
-
-// MARK: - fun fact placeholder slot
-private struct FunFactSlot: View {
-    var body: some View {
-        // Placeholder container for future implementation.
-        // Kept visually empty to avoid changing current UI.
-        Color.clear.frame(height: 0)
-    }
-}
-
-private struct ReanalysisButton: View {
-    var isLoading: Bool
-    var isEnabled: Bool
-    var onTap: () -> Void
-
-    var body: some View {
-        Button {
-            onTap()
-        } label: {
-            Text("Reanalysis")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Color.white.opacity(0.12))
-                .clipShape(Capsule())
-        }
-        .disabled(isLoading || !isEnabled)
-        .opacity((isLoading || !isEnabled) ? 0.55 : 1.0)
-        .padding(.top, 10)
+    
+    init(viewModel: FaceMeshAssistantViewModel? = nil, onAppReady: (() -> Void)? = nil) {
+        self._viewModel = StateObject(wrappedValue: viewModel ?? FaceMeshAssistantViewModel())
+        self.onAppReady = onAppReady
     }
 }
 

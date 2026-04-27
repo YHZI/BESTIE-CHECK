@@ -67,7 +67,6 @@ app.post('/api/face-analysis', async (req, res) => {
 
     // 构建给模型的 prompt（结构化数据摘要）
     const prompt = buildPrompt(face_analysis);
-    const textPart = geminiStaticPrompt;
     // 组装 user parts：先文字，若有图则加 inline_data（多模态）
     const userParts = [{ text: textPart }];
     if (image_base64 && typeof image_base64 === 'string' && image_base64.length > 0) {
