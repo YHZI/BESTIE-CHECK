@@ -10,48 +10,45 @@ import SwiftUI
 
 // MARK: - FunFactBubble
 
-/// 布局：[气泡  →尾巴][LaunchIcon SVG（无背景）]
-/// 可拖动、关闭时向 Icon 方向收缩，收缩后 Icon 外出现彩色呼吸灯
+/// 布局：[气泡 →尾巴][LaunchIcon SVG（无背景）]
+/// 接口：
+///   text        — 主标题文字（必填）
+///   feedbackText — 副文本 / AI feedback（可选，nil 时不显示）
+///   url         — 点击气泡打开的网页链接（可选，nil 时不跳转）
+///   onDismiss   — 关闭回调
 struct FunFactBubble: View {
     let text: String
+    var feedbackText: String? = nil
+    var url: URL?             = nil
     var onDismiss: (() -> Void)? = nil
 
     @State private var isCollapsed:   Bool    = false
     @State private var bubbleScale:   CGFloat = 0.0
     @State private var bubbleOpacity: Double  = 0.0
     @State private var glowOpacity:   Double  = 0.0
-    /// Drag offset accumulated across gestures
-    @State private var position: CGSize = .zero
+    @State private var position:      CGSize  = .zero
     @GestureState private var dragDelta: CGSize = .zero
 
     private let iconSize: CGFloat = 44
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
-
-            // ── Left: bubble ─────────────────────────────────────────────
             if !isCollapsed {
                 bubbleContent
                     .scaleEffect(bubbleScale, anchor: .trailing)
                     .opacity(bubbleOpacity)
                     .transition(.identity)
             }
-
-            // ── Right: LaunchIcon (raw SVG, no background) ─────────────
             iconView
         }
-        .offset(
-            x: position.width  + dragDelta.width,
-            y: position.height + dragDelta.height
-        )
+        .offset(x: position.width + dragDelta.width,
+                y: position.height + dragDelta.height)
         .gesture(
             DragGesture()
-                .updating($dragDelta) { value, state, _ in
-                    state = value.translation
-                }
-                .onEnded { value in
-                    position.width  += value.translation.width
-                    position.height += value.translation.height
+                .updating($dragDelta) { v, state, _ in state = v.translation }
+                .onEnded { v in
+                    position.width  += v.translation.width
+                    position.height += v.translation.height
                 }
         )
         .onAppear { expand() }
@@ -60,20 +57,50 @@ struct FunFactBubble: View {
     // MARK: - Bubble
 
     private var bubbleContent: some View {
-        HStack(alignment: .top, spacing: 0) {
-            Text(text)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .frame(maxWidth: 220, alignment: .leading)
+        VStack(alignment: .leading, spacing: 0) {
+            // ── Header row: title + close button ──────────────────────────
+            HStack(alignment: .top, spacing: 0) {
+                Text(text)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, feedbackText == nil ? 10 : 4)
+                    .frame(maxWidth: 200, alignment: .leading)
 
-            Button { collapse() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
+                Button { collapse() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .padding(8)
+                }
+                .padding(.top, 4)
+            }
+
+            // ── Feedback sub-text (optional) ───────────────────────────────
+            if let fb = feedbackText, !fb.isEmpty {
+                Text(fb)
+                    .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(.secondary)
-                    .padding(8)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(3)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+                    .frame(maxWidth: 200, alignment: .leading)
+            }
+
+            // ── URL hint (shown when url is provided) ─────────────────────
+            if url != nil {
+                HStack(spacing: 4) {
+                    Image(systemName: "safari")
+                        .font(.system(size: 10))
+                    Text("Tap to learn more")
+                        .font(.system(size: 11))
+                }
+                .foregroundStyle(.blue.opacity(0.8))
+                .padding(.horizontal, 14)
+                .padding(.bottom, 8)
             }
         }
         .background(
@@ -83,13 +110,17 @@ struct FunFactBubble: View {
             }
         )
         .overlay(alignment: .trailing) {
-            // Right-pointing tail
             RightTail()
                 .fill(.ultraThinMaterial)
                 .frame(width: 10, height: 8)
                 .offset(x: 9, y: 0)
         }
         .shadow(color: .black.opacity(0.14), radius: 8, x: 0, y: 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard let link = url else { return }
+            UIApplication.shared.open(link)
+        }
     }
 
     // MARK: - Icon
@@ -97,7 +128,7 @@ struct FunFactBubble: View {
     private var iconView: some View {
         ZStack {
             if isCollapsed {
-                BreathingGlow(radius: iconSize / 2)
+                FunFactBreathingGlow(radius: iconSize / 2)
                     .opacity(glowOpacity)
             }
             Image("LaunchIcon")
@@ -143,9 +174,9 @@ private struct RightTail: Shape {
     }
 }
 
-// MARK: - Breathing glow ring
+// MARK: - Breathing glow (shared — used by FunFactBubble & LogoFrame)
 
-private struct BreathingGlow: View {
+struct FunFactBreathingGlow: View {
     let radius: CGFloat
     @State private var pulse: Bool = false
 
@@ -165,10 +196,8 @@ private struct BreathingGlow: View {
                         ),
                         lineWidth: 2.5
                     )
-                    .frame(
-                        width:  (radius * 2) + CGFloat(i + 1) * 10,
-                        height: (radius * 2) + CGFloat(i + 1) * 10
-                    )
+                    .frame(width:  (radius * 2) + CGFloat(i + 1) * 10,
+                           height: (radius * 2) + CGFloat(i + 1) * 10)
                     .opacity(pulse ? 0.0 : Double(3 - i) * 0.25)
                     .scaleEffect(pulse ? 1.4 : 1.0)
                     .animation(
@@ -189,8 +218,11 @@ private struct BreathingGlow: View {
     ZStack {
         Color.black.opacity(0.75).ignoresSafeArea()
         FunFactBubble(
-            text: "Your eyebrow raise is 78% — you look naturally expressive today! ✨",
+            text: "Did you know? 👀",
+            feedbackText: "Your eyebrow raise is 78% — you look naturally expressive today! ✨",
+            url: URL(string: "https://example.com"),
             onDismiss: {}
         )
+        .padding(32)
     }
 }

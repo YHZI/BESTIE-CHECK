@@ -34,6 +34,8 @@ struct ContentView: View {
 
     /// FunFact bubble visibility
     @State private var showFunFact: Bool = false
+    /// LogoFrame breathing glow — true after FunFact is dismissed
+    @State private var logoGlowing: Bool = false
 
     var onAppReady: (() -> Void)? = nil
 
@@ -117,7 +119,12 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     LogoFrame(
                         horizontalOffset: -6,
                         verticalOffset: 0,
-                        imageScale: 1.2
+                        imageScale: 1.2,
+                        isGlowing: logoGlowing,
+                        onTap: logoGlowing ? {
+                            logoGlowing = false
+                            showFunFact = true
+                        } : nil
                     )
                         .frame(height: 120)
                 }
@@ -210,35 +217,6 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 .cornerRadius(12)
                 .padding(.bottom, 100)
             }
-
-            // Re-scan button (appears after the first completed analysis attempt)
-            if viewModel.hasCompletedFirstAnalysis && !viewModel.isLoading {
-                VStack {
-                    Spacer()
-                    Button {
-                        viewModel.requestReanalysis()
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "arrow.clockwise")
-                            Text("Scan again")
-                        }
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(Color.black.opacity(0.55))
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                        )
-                    }
-                    .disabled(!viewModel.canRequestReanalysis)
-                    .opacity(viewModel.canRequestReanalysis ? 1.0 : 0.55)
-                    .padding(.bottom, 120)
-                }
-                .zIndex(20)
-            }
             
             // 错误提示
             if let errorMessage = viewModel.errorMessage {
@@ -260,10 +238,15 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             // ── FunFact floating bubble (draggable overlay) ──────────────
             if showFunFact {
                 FunFactBubble(
-                    text: viewModel.bubbleText.isEmpty
-                        ? "Fun fact: your face is looking great today! ✨"
-                        : viewModel.bubbleText,
-                    onDismiss: { showFunFact = false }
+                    text: "Fun Fact ✨",
+                    feedbackText: viewModel.bubbleText.isEmpty ? nil : viewModel.bubbleText,
+                    url: nil,
+                    onDismiss: {
+                        showFunFact = false
+                        withAnimation(.easeIn(duration: 0.2)) {
+                            logoGlowing = true
+                        }
+                    }
                 )
                 .padding(.leading, 16)
                 .padding(.bottom, 180)

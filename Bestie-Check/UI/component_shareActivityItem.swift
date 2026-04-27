@@ -16,31 +16,22 @@ import CoreText
 final class ShareImageActivityItemSource: NSObject, UIActivityItemSource {
     private let image: UIImage
     private let fileURL: URL
-    private let uti: String
 
-    init?(image: UIImage, preferredFileName: String = "GOSHSHA-Share") {
-        self.image = image
-
-        let dir = FileManager.default.temporaryDirectory
-        let base = "\(preferredFileName)-\(UUID().uuidString)"
-
+    // Designated initialiser — all stored properties set BEFORE super.init()
+    private init(image: UIImage, fileURL: URL) {
+        self.image   = image
+        self.fileURL = fileURL
         super.init()
+    }
 
-        if let data = image.jpegData(compressionQuality: 0.92) {
-            self.uti = "public.jpeg"
-            self.fileURL = dir.appendingPathComponent("\(base).jpg")
-            do { try data.write(to: fileURL, options: [.atomic]) } catch { return nil }
-            return
-        }
-
-        if let data = image.pngData() {
-            self.uti = "public.png"
-            self.fileURL = dir.appendingPathComponent("\(base).png")
-            do { try data.write(to: fileURL, options: [.atomic]) } catch { return nil }
-            return
-        }
-
-        return nil
+    // Failable convenience factory
+    convenience init?(image: UIImage, preferredFileName: String = "GOSHSHA-Share") {
+        let dir  = FileManager.default.temporaryDirectory
+        let url  = dir.appendingPathComponent("\(preferredFileName)-\(UUID().uuidString).jpg")
+        guard let data = image.jpegData(compressionQuality: 0.92),
+              (try? data.write(to: url, options: [.atomic])) != nil
+        else { return nil }
+        self.init(image: image, fileURL: url)
     }
 
     func cleanup() {
@@ -55,10 +46,7 @@ final class ShareImageActivityItemSource: NSObject, UIActivityItemSource {
         _ activityViewController: UIActivityViewController,
         itemForActivityType activityType: UIActivity.ActivityType?
     ) -> Any? {
-        // Keep "Copy" behavior consistent (pasteboard expects UIImage).
-        if activityType == .copyToPasteboard {
-            return image
-        }
+        if activityType == .copyToPasteboard { return image }
         return fileURL
     }
 
@@ -66,7 +54,7 @@ final class ShareImageActivityItemSource: NSObject, UIActivityItemSource {
         _ activityViewController: UIActivityViewController,
         dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?
     ) -> String {
-        uti
+        "public.jpeg"
     }
 
     func activityViewController(
@@ -129,7 +117,7 @@ func makeShareImage(photo: UIImage, replyText: String) -> UIImage {
 }
 
 /// 纯渲染函数：所有参数已捕获，可在任意线程调用
-private func _renderShareImage(
+private nonisolated func _renderShareImage(
     photo: UIImage, replyText: String,
     ptWidth: CGFloat, ptHeight: CGFloat, renderScale: CGFloat
 ) -> UIImage {
@@ -349,19 +337,13 @@ struct ShareFlowModifier: ViewModifier {
                         if let item = ShareImageActivityItemSource(image: img) {
                             let vc = UIActivityViewController(activityItems: [item], applicationActivities: nil)
                             vc.completionWithItemsHandler = { _, _, _, _ in
+                                DispatchQueue.main.async {
+                                    isPresented = false
+                                    isBubbleExpanded = false
+                                    viewModel.resetToWelcome()
+                                }
                                 item.cleanup()
                             }
-                            if let popover = vc.popoverPresentationController {
-                                popover.sourceView = top.view
-                                popover.sourceRect = CGRect(x: top.view.bounds.midX,
-                                                            y: top.view.bounds.midY,
-                                                            width: 0, height: 0)
-                                popover.permittedArrowDirections = []
-                            }
-                            top.present(vc, animated: true)
-                        } else {
-                            // Fallback: some devices/extensions may fail creating a temp file; share UIImage directly.
-                            let vc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
                             if let popover = vc.popoverPresentationController {
                                 popover.sourceView = top.view
                                 popover.sourceRect = CGRect(x: top.view.bounds.midX,
