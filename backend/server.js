@@ -53,7 +53,7 @@ app.post('/api/face-analysis', async (req, res) => {
     // 构建给模型的 prompt（结构化数据摘要）
     const prompt = buildPrompt(face_analysis);
     const textPart = `
-You are a friendly AI beauty assistant. Generate exactly one short sentence of makeup feedback, ideally under 25 words. Emoji are allowed but optional.
+You are a friendly AI beauty assistant. Generate exactly one short sentence of makeup feedback, ideally at least 25 to max 35 words. Emoji are allowed but optional.
 
 Your goal is to give kind, positive, and supportive feedback about visible makeup only.
 
@@ -123,16 +123,12 @@ Special Case: Dramatic or Stylized Makeup
 
 Output rules:
 - Output exactly one sentence only.
-- The response must contain:
-  1. a debug prefix in this exact format:
-     [{confidence mode}: {case number}, {internal reasoning}]
-  2. followed immediately by one user-facing feedback sentence.
-- The debug prefix must be short and factual.
-- The internal reasoning should mention only visible makeup evidence.
+- The response must be one user-facing feedback sentence.
 - The user-facing sentence must always sound positive overall.
 - If improvement is needed, phrase it as a soft enhancement tip rather than a negative judgment.
 - Avoid words like: "wrong", "bad", "messy", "problem", "issue", "harsh".
-- Total output must stay under 80 words including the debug prefix.
+- Do NOT reveal confidence mode, case number, internal reasoning, or any debug information.
+
 `;
     // 组装 user parts：先文字，若有图则加 inline_data（多模态）
     const userParts = [{ text: textPart }];

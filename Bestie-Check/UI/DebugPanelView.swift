@@ -22,6 +22,7 @@ struct DebugPanelView: View {
     @State private var savedToPhotos: Bool = false
     @State private var showPreview = false
     @State private var previewImageForUI: UIImage?
+    @State private var showLaunchScreen = false
     
     private func updateExpansionCheck(_ text: String) {
         byteCount = text.utf8.count
@@ -291,64 +292,23 @@ struct DebugPanelView: View {
                     Divider()
                         .background(Color.white.opacity(0.3))
                     
-                    // 分享图预览（占位背景，无需相机）
-                    VStack(spacing: 6) {
-                        // 👉 Debug 进入 SharePreviewView（替代 Save to Photos）
-                        Button(action: {
-                            print("🔥 BUTTON CLICKED")
-                            
-                            // 使用真实的 AI 反馈文本或测试文本
-                            let testText = "这是一个测试的 AI 反馈文本，用于展示分享预览界面的效果。"
-                            
-                            showPreview = true
-                        }) {
-                            HStack {
-                                Image(systemName: "eye")
-                                Text("Preview → Open UI")
-                            }
-                            .font(.caption)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(8)
-                            .background(Color.green.opacity(0.7))
-                            .cornerRadius(6)
+                    // Launch Loading Screen 预览按钮
+                    Button(action: {
+                        showLaunchScreen = true
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise.circle.fill")
+                            Text("Preview Launch Screen")
                         }
-                        
-                        // 通过系统分享面板查看
-                        Button(action: {
-                            let reply = viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            
-                            showPreview = true
-                        }) {
-                            HStack {
-                                Image(systemName: "eye.fill")
-                                Text("Preview → Open UI (Alt)")
-                            }
-                            .font(.caption)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(8)
-                            .background(Color.purple.opacity(0.7))
-                            .cornerRadius(6)
-                        }
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(8)
+                        .background(Color.indigo.opacity(0.7))
+                        .cornerRadius(6)
                     }
-                    
-                    /// 👉 打开 Preview 页面
-                    .fullScreenCover(isPresented: $showPreview) {
-                        SharePreviewView(
-                            selfieImage: UIImage(systemName: "person.fill"),  // 占位图像
-                            aiReplyText: viewModel.bubbleText.isEmpty ? "测试 AI 反馈文本" : viewModel.bubbleText,  // 使用 ViewModel 的文本
-                            onRetake: {
-                                // 重新拍照的逻辑
-                                print("重新拍照")
-                                showPreview = false
-                            },
-                            onDismiss: {
-                                // 关闭预览的逻辑
-                                print("关闭预览")
-                                showPreview = false
-                            }
-                        )
+                    .fullScreenCover(isPresented: $showLaunchScreen) {
+                        LaunchLoadingContainerView()
                     }
                 }
             }

@@ -277,32 +277,6 @@ private func _renderShareImage(
     }
 }
 
-// MARK: - Share Image Preview (Debug)
-
-/// 测试用：用白色 60% 占位背景替代用户照片，直接生成分享图预览
-/// 在 Debug Panel 中调用，无需相机
-func makeShareImagePreview(replyText: String) -> UIImage {
-    let screen      = UIScreen.main
-    let ptWidth     = screen.bounds.width
-    let ptHeight    = screen.bounds.height          // 真实屏幕比例
-    let renderScale = screen.scale
-
-    let format = UIGraphicsImageRendererFormat()
-    format.scale = renderScale
-    format.opaque = true
-
-    let placeholder = UIGraphicsImageRenderer(
-        size: CGSize(width: ptWidth, height: ptHeight),
-        format: format
-    ).image { ctx in
-        UIColor.white.setFill()
-        ctx.fill(CGRect(origin: .zero, size: CGSize(width: ptWidth, height: ptHeight)))
-        UIColor.black.withAlphaComponent(0.08).setFill()
-        ctx.fill(CGRect(origin: .zero, size: CGSize(width: ptWidth, height: ptHeight)))
-    }
-    return makeShareImage(photo: placeholder, replyText: replyText)
-}
-
 // MARK: - ShareFlow ViewModifier
 
 /// 将完整的 share 流程（相机 → 合成 → 系统分享面板）作为 ViewModifier 挂载到任意 View
@@ -317,7 +291,7 @@ struct ShareFlowModifier: ViewModifier {
     @State private var composeTask: Task<Void, Never>? = nil
 
     /// 在主线程捕获 screen 参数，然后在后台线程纯渲染，持有 Task 可随时 cancel
-    private func recompose(with photo: UIImage) {
+    private func recompose(with photo: UIImage?) {
         composeTask?.cancel()
         // 在主线程读取 UIScreen（安全），捕获值传入后台
         let ptWidth     = UIScreen.main.bounds.width
@@ -325,9 +299,21 @@ struct ShareFlowModifier: ViewModifier {
         let renderScale = UIScreen.main.scale
         let reply       = replyText
 
+        // 如果没有图片，生成纯白图片
+        let basePhoto: UIImage = {
+            if let photo = photo { return photo }
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = renderScale
+            format.opaque = true
+            return UIGraphicsImageRenderer(size: CGSize(width: ptWidth, height: ptHeight), format: format).image { ctx in
+                UIColor.white.setFill()
+                ctx.fill(CGRect(origin: .zero, size: CGSize(width: ptWidth, height: ptHeight)))
+            }
+        }()
+
         composeTask = Task {
             let result = await Task.detached(priority: .userInitiated) {
-                _renderShareImage(photo: photo, replyText: reply,
+                _renderShareImage(photo: basePhoto, replyText: reply,
                                   ptWidth: ptWidth, ptHeight: ptHeight, renderScale: renderScale)
             }.value
             guard !Task.isCancelled else { return }
@@ -350,22 +336,27 @@ struct ShareFlowModifier: ViewModifier {
                         var top = root
                         while let presented = top.presentedViewController { top = presented }
 
-                        let vc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
-                        vc.completionWithItemsHandler = { _, _, _, _ in
-                            DispatchQueue.main.async {
-                                isPresented = false
-                                isBubbleExpanded = false
-                                viewModel.resetToWelcome()
+                        // 用 ShareImageActivityItemSource 包装图片，保证兼容性
+                        if let item = ShareImageActivityItemSource(image: img) {
+                            let vc = UIActivityViewController(activityItems: [item], applicationActivities: nil)
+                            vc.completionWithItemsHandler = { _, _, _, _ in
+                                DispatchQueue.main.async {
+                                    isPresented = false
+                                    isBubbleExpanded = false
+                                    viewModel.resetToWelcome()
+                                }
+                                item.cleanup()
                             }
+                            if let popover = vc.popoverPresentationController {
+                                popover.sourceView = top.view
+                                popover.sourceRect = CGRect(x: top.view.bounds.midX,
+                                                            y: top.view.bounds.midY,
+                                                            width: 0, height: 0)
+                                popover.permittedArrowDirections = []
+                            }
+                            top.present(vc, animated: true)
                         }
-                        if let popover = vc.popoverPresentationController {
-                            popover.sourceView = top.view
-                            popover.sourceRect = CGRect(x: top.view.bounds.midX,
-                                                        y: top.view.bounds.midY,
-                                                        width: 0, height: 0)
-                            popover.permittedArrowDirections = []
-                        }
-                        top.present(vc, animated: true)
+
                     },
                     onNewPhoto: { photo in
                         recompose(with: photo)

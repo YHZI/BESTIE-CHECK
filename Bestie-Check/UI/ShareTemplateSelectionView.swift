@@ -16,7 +16,7 @@ struct ShareTemplateSelectionView: View {
     @State private var isShowingRetakeReminder: Bool = false
 
     private var canShare: Bool {
-        previewImage != nil && !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        previewImage != nil
     }
 
     var body: some View {
@@ -37,10 +37,6 @@ struct ShareTemplateSelectionView: View {
                     previewCard
                         .padding(.horizontal, 20)
                         .padding(.vertical, 16)
-
-                    replyPromptCard
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 8)
                 }
                 actions
                     .padding(.horizontal, 20)
@@ -48,9 +44,23 @@ struct ShareTemplateSelectionView: View {
                     .padding(.top, 12)
             }
         }
-        // composedImage 由 ShareFlowModifier 负责合成并更新，这里只需同步显示
         .onAppear {
-            if let img = composedImage { previewImage = img }
+            if let img = composedImage {
+                previewImage = img
+            } else if previewImage == nil {
+                // 只用于UI预览的白色图片
+                let screen = UIScreen.main
+                let ptWidth = screen.bounds.width
+                let ptHeight = screen.bounds.height
+                let renderScale = screen.scale
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = renderScale
+                format.opaque = true
+                previewImage = UIGraphicsImageRenderer(size: CGSize(width: ptWidth, height: ptHeight), format: format).image { ctx in
+                    UIColor.white.setFill()
+                    ctx.fill(CGRect(origin: .zero, size: CGSize(width: ptWidth, height: ptHeight)))
+                }
+            }
         }
         .onChange(of: composedImage) { _, newValue in
             if let img = newValue { previewImage = img }
@@ -112,24 +122,6 @@ struct ShareTemplateSelectionView: View {
         }
     }
 
-    private var replyPromptCard: some View {
-        let prompt = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Your feedback")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.85))
-
-            Text(prompt.isEmpty ? "…" : prompt)
-                .font(.system(size: 14))
-                .foregroundStyle(.white)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(16)
-        .background(Color.white.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
     private var header: some View {
         HStack {
             Button(action: onDismiss) {
@@ -187,8 +179,6 @@ struct ShareTemplateSelectionView: View {
     private var actions: some View {
         VStack(spacing: 10) {
             Button {
-                // If user isn't satisfied, show a placeholder guide page first,
-                // then allow them to take a selfie.
                 isGuidePresented = true
             } label: {
                 HStack {
@@ -204,7 +194,23 @@ struct ShareTemplateSelectionView: View {
             }
 
             Button {
-                guard let img = previewImage else { return }
+                // 分享时只传真正的合成图片，如果没有则临时生成白色图片
+                let img: UIImage
+                if let composed = composedImage {
+                    img = composed
+                } else {
+                    let screen = UIScreen.main
+                    let ptWidth = screen.bounds.width
+                    let ptHeight = screen.bounds.height
+                    let renderScale = screen.scale
+                    let format = UIGraphicsImageRendererFormat()
+                    format.scale = renderScale
+                    format.opaque = true
+                    img = UIGraphicsImageRenderer(size: CGSize(width: ptWidth, height: ptHeight), format: format).image { ctx in
+                        UIColor.white.setFill()
+                        ctx.fill(CGRect(origin: .zero, size: CGSize(width: ptWidth, height: ptHeight)))
+                    }
+                }
                 onPickTemplate(img)
             } label: {
                 HStack {
