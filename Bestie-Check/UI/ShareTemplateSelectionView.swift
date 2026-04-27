@@ -10,20 +10,18 @@ struct ShareTemplateSelectionView: View {
     var onNewPhoto: (UIImage) -> Void
     var onDismiss: () -> Void
 
-    @State private var isRetakeCameraPresented: Bool = false
     @State private var isGuidePresented: Bool = false
     @State private var previewImage: UIImage? = nil
     @State private var isShowingRetakeReminder: Bool = false
 
-    private var canShare: Bool {
-        previewImage != nil
-    }
+    // 总是允许分享——没有合成图时会在分享时临时生成白色图片
+    private var canShare: Bool { true }
 
     var body: some View {
         ZStack {
             // 实时相机背景：保持在视图树中以避免重建，isActive=false 时暂停 session
             // 让位给相机 picker（避免两个 AVCaptureSession 争抢前置摄像头）
-            CameraPreview(isActive: !isRetakeCameraPresented)
+            CameraPreview(isActive: !isGuidePresented)
                 .ignoresSafeArea()
             Color.black.opacity(0.5).ignoresSafeArea()
 
@@ -47,20 +45,9 @@ struct ShareTemplateSelectionView: View {
         .onAppear {
             if let img = composedImage {
                 previewImage = img
-            } else if previewImage == nil {
-                // 只用于UI预览的白色图片
-                let screen = UIScreen.main
-                let ptWidth = screen.bounds.width
-                let ptHeight = screen.bounds.height
-                let renderScale = screen.scale
-                let format = UIGraphicsImageRendererFormat()
-                format.scale = renderScale
-                format.opaque = true
-                previewImage = UIGraphicsImageRenderer(size: CGSize(width: ptWidth, height: ptHeight), format: format).image { ctx in
-                    UIColor.white.setFill()
-                    ctx.fill(CGRect(origin: .zero, size: CGSize(width: ptWidth, height: ptHeight)))
-                }
             }
+            // 没有图片时保持 previewImage = nil，显示 Composing... loading 状态
+            // 白色图片只在实际分享时才会生成（不插入预览 UI）
         }
         .onChange(of: composedImage) { _, newValue in
             if let img = newValue { previewImage = img }
@@ -71,32 +58,17 @@ struct ShareTemplateSelectionView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $isRetakeCameraPresented) {
-            ShareCameraPicker { image in
-                isRetakeCameraPresented = false
-                guard let image else { return }
-                // 立即显示原始照片作为占位
-                previewImage = image
-                // Retake reminder: keep visible while recomposing.
-                isShowingRetakeReminder = true
-                // 通知 Modifier 重新合成（Modifier 持有 Task，可 cancel 旧任务）
-                onNewPhoto(image)
-            }
-            .ignoresSafeArea()
-        }
         .fullScreenCover(isPresented: $isGuidePresented) {
-            // Placeholder guide page (intentionally blank).
-            ShareGuidePlaceholderView(
-                onBack: {
-                    // Back returns to the app auto photo step (this screen).
+            ShareGuideView(
+                onBack: { isGuidePresented = false },
+                onCapture: { image in
                     isGuidePresented = false
+                    previewImage = image
+                    isShowingRetakeReminder = true
+                    onNewPhoto(image)
                 },
-                onNext: {
-                    // Flow scaffold:
-                    // app auto photo -> guide placeholder page -> user selfie (camera picker) -> app auto photo (recompose)
-                    isGuidePresented = false
-                    isRetakeCameraPresented = true
-                }
+                sharePreviewImage: preCapturedImage,
+                replyText: replyText
             )
             .ignoresSafeArea()
         }
