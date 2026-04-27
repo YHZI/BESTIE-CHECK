@@ -10,10 +10,11 @@ import Combine
 
 struct DebugPanelView: View {
     @ObservedObject var viewModel: FaceMeshAssistantViewModel
-    @ObservedObject var faceDetectionProvider = FaceDetectionProvider.shared  // 人脸检测状态
-    @Binding var isLongTextMode: Bool  // 添加 Binding 参数
-    @Binding var showViewFinderScan: Bool  // ViewFinder 扫描线开关
-    @Binding var useRGBBackground: Bool  // 背景模式开关
+    @ObservedObject var faceDetectionProvider = FaceDetectionProvider.shared
+    @Binding var isLongTextMode: Bool
+    @Binding var showViewFinderScan: Bool
+    @Binding var useRGBBackground: Bool
+    @Binding var showFunFact: Bool
     @State private var isExpanded: Bool = false
     @State private var testText: String = ""
     @State private var byteCount: Int = 0
@@ -310,6 +311,25 @@ struct DebugPanelView: View {
                     .fullScreenCover(isPresented: $showLaunchScreen) {
                         LaunchLoadingContainerView()
                     }
+
+                    Divider()
+                        .background(Color.white.opacity(0.3))
+
+                    // FunFact Bubble 预览按钮
+                    Button(action: {
+                        showFunFact.toggle()
+                    }) {
+                        HStack {
+                            Image(systemName: "bubble.left.fill")
+                            Text(showFunFact ? "Hide FunFact Bubble" : "Show FunFact Bubble")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(8)
+                        .background(showFunFact ? Color.teal.opacity(0.9) : Color.teal.opacity(0.7))
+                        .cornerRadius(6)
+                    }
                 }
             }
         }
@@ -321,13 +341,15 @@ struct DebugPanelView: View {
         @State private var isLongTextMode = false
         @State private var showViewFinderScan = false
         @State private var useRGBBackground = false
-        
+        @State private var showFunFact = false
+
         var body: some View {
             DebugPanelView(
                 viewModel: FaceMeshAssistantViewModel(),
                 isLongTextMode: $isLongTextMode,
                 showViewFinderScan: $showViewFinderScan,
-                useRGBBackground: $useRGBBackground
+                useRGBBackground: $useRGBBackground,
+                showFunFact: $showFunFact
             )
             .background(Color.black)
         }

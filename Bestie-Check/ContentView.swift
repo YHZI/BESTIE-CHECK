@@ -32,6 +32,9 @@ struct ContentView: View {
     @State private var shareFrozenReplyText: String = ""
     @State private var shareFrozenPreImage: UIImage? = nil
 
+    /// FunFact bubble visibility
+    @State private var showFunFact: Bool = false
+
     var onAppReady: (() -> Void)? = nil
 
     
@@ -185,7 +188,8 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     viewModel: viewModel,
                     isLongTextMode: $isLongTextMode,
                     showViewFinderScan: $showViewFinderScan,
-                    useRGBBackground: $useRGBBackground
+                    useRGBBackground: $useRGBBackground,
+                    showFunFact: $showFunFact
                 )
             }
             .zIndex(1000)  // 始终在最前端
@@ -222,6 +226,22 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                             viewModel.errorMessage = nil
                         }
                 }
+            }
+
+            // ── FunFact floating bubble (draggable overlay) ──────────────
+            if showFunFact {
+                FunFactBubble(
+                    text: viewModel.bubbleText.isEmpty
+                        ? "Fun fact: your face is looking great today! ✨"
+                        : viewModel.bubbleText,
+                    onDismiss: { showFunFact = false }
+                )
+                .padding(.leading, 16)
+                .padding(.bottom, 180)
+                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                       alignment: .bottomLeading)
+                .allowsHitTesting(true)
+                .zIndex(10)
             }
         }
         .onAppear {
