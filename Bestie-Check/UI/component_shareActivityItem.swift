@@ -16,22 +16,31 @@ import CoreText
 final class ShareImageActivityItemSource: NSObject, UIActivityItemSource {
     private let image: UIImage
     private let fileURL: URL
+    private let uti: String
 
     init?(image: UIImage, preferredFileName: String = "GOSHSHA-Share") {
         self.image = image
 
         let dir = FileManager.default.temporaryDirectory
-        let file = "\(preferredFileName)-\(UUID().uuidString).jpg"
-        self.fileURL = dir.appendingPathComponent(file)
+        let base = "\(preferredFileName)-\(UUID().uuidString)"
 
         super.init()
 
-        guard let data = image.jpegData(compressionQuality: 0.92) else { return nil }
-        do {
-            try data.write(to: fileURL, options: [.atomic])
-        } catch {
-            return nil
+        if let data = image.jpegData(compressionQuality: 0.92) {
+            self.uti = "public.jpeg"
+            self.fileURL = dir.appendingPathComponent("\(base).jpg")
+            do { try data.write(to: fileURL, options: [.atomic]) } catch { return nil }
+            return
         }
+
+        if let data = image.pngData() {
+            self.uti = "public.png"
+            self.fileURL = dir.appendingPathComponent("\(base).png")
+            do { try data.write(to: fileURL, options: [.atomic]) } catch { return nil }
+            return
+        }
+
+        return nil
     }
 
     func cleanup() {
@@ -57,7 +66,7 @@ final class ShareImageActivityItemSource: NSObject, UIActivityItemSource {
         _ activityViewController: UIActivityViewController,
         dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?
     ) -> String {
-        "public.jpeg"
+        uti
     }
 
     func activityViewController(
@@ -340,13 +349,19 @@ struct ShareFlowModifier: ViewModifier {
                         if let item = ShareImageActivityItemSource(image: img) {
                             let vc = UIActivityViewController(activityItems: [item], applicationActivities: nil)
                             vc.completionWithItemsHandler = { _, _, _, _ in
-                                DispatchQueue.main.async {
-                                    isPresented = false
-                                    isBubbleExpanded = false
-                                    viewModel.resetToWelcome()
-                                }
                                 item.cleanup()
                             }
+                            if let popover = vc.popoverPresentationController {
+                                popover.sourceView = top.view
+                                popover.sourceRect = CGRect(x: top.view.bounds.midX,
+                                                            y: top.view.bounds.midY,
+                                                            width: 0, height: 0)
+                                popover.permittedArrowDirections = []
+                            }
+                            top.present(vc, animated: true)
+                        } else {
+                            // Fallback: some devices/extensions may fail creating a temp file; share UIImage directly.
+                            let vc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
                             if let popover = vc.popoverPresentationController {
                                 popover.sourceView = top.view
                                 popover.sourceRect = CGRect(x: top.view.bounds.midX,

@@ -210,6 +210,35 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 .cornerRadius(12)
                 .padding(.bottom, 100)
             }
+
+            // Re-scan button (appears after the first completed analysis attempt)
+            if viewModel.hasCompletedFirstAnalysis && !viewModel.isLoading {
+                VStack {
+                    Spacer()
+                    Button {
+                        viewModel.requestReanalysis()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Scan again")
+                        }
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.black.opacity(0.55))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                        )
+                    }
+                    .disabled(!viewModel.canRequestReanalysis)
+                    .opacity(viewModel.canRequestReanalysis ? 1.0 : 0.55)
+                    .padding(.bottom, 120)
+                }
+                .zIndex(20)
+            }
             
             // 错误提示
             if let errorMessage = viewModel.errorMessage {
