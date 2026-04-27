@@ -8,13 +8,16 @@ const PORT = process.env.PORT || 8080;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
-const geminiPromptPath = path.join(__dirname, 'gemini-prompt.txt');
+const mainPromptPath = path.join(__dirname, 'main_prompt.txt');
+const outputRulePath = path.join(__dirname, 'output_rule.txt');
 let geminiStaticPrompt = '';
 
 try {
-  geminiStaticPrompt = fs.readFileSync(geminiPromptPath, 'utf8').trim();
+  const mainPrompt = fs.readFileSync(mainPromptPath, 'utf8').trim();
+  const outputRule = fs.readFileSync(outputRulePath, 'utf8').trim();
+  geminiStaticPrompt = [mainPrompt, outputRule].filter(Boolean).join('\n\n');
 } catch (error) {
-  console.error(`Failed to load Gemini prompt from ${geminiPromptPath}:`, error);
+  console.error(`Failed to load Gemini prompt files from ${mainPromptPath} and ${outputRulePath}:`, error);
   process.exit(1);
 }
 
