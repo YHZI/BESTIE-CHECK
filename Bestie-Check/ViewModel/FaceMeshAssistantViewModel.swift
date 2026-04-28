@@ -179,7 +179,6 @@ class FaceMeshAssistantViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         canRequestReanalysis = false
-        hasCompletedFirstAnalysis = true
         
         do {
             let imageBase64 = uploadFullImage ? AIClient.pixelBufferToBase64(pixelBuffer) : nil
@@ -194,12 +193,14 @@ class FaceMeshAssistantViewModel: ObservableObject {
                 imageBase64: imageBase64
             )
             updateBubble(text: aiReply, autoHide: true, isAIResponse: true)
+            hasCompletedFirstAnalysis = true
             isLoading = false
             canRequestReanalysis = true
         } catch {
             // 请求失败：不自动重试（避免在同一次会话里反复触发），交给用户点 Reanalysis 再来一次。
             isLoading = false
             canRequestReanalysis = true
+            hasCompletedFirstAnalysis = true
             errorMessage = "AI API Error: \(error.localizedDescription)"
             print("❌ AI API error: \(error)")
         }
