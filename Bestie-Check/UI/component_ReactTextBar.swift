@@ -15,6 +15,61 @@ enum ReactTextBarTemplate {
     case template2  // 模版2：完整显示（标题 + 分割线 + 内容）
 }
 
+// MARK: - Text Normalizer (文字标准化工具)
+struct TextNormalizer {
+    static func normalize(_ text: String) -> String {
+        var result = text
+        result = removeEmojisOnly(from: result)
+        result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        result = result.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return result
+    }
+    
+    private static func removeEmojisOnly(from text: String) -> String {
+        var result = ""
+        var skipNextChar = false
+        
+        let characters = Array(text)
+        for i in 0..<characters.count {
+            guard !skipNextChar else {
+                skipNextChar = false
+                continue
+            }
+            
+            let char = characters[i]
+            let scalar = char.unicodeScalars.first!
+            
+            // 检查是否是复合 emoji（需要两个 unicode 标量）
+            if i + 1 < characters.count {
+                let nextScalar = characters[i + 1].unicodeScalars.first!
+                
+                // 检查是否是带肤色的 emoji
+                if (0x1F3FB...0x1F3FF).contains(nextScalar.value) {
+                    result.append(char)
+                    skipNextChar = true
+                    continue
+                }
+                
+                // 检查是否是组合 emoji
+                if scalar.properties.isEmojiPresentation ||
+                    (scalar.value >= 0x1F600 && scalar.value <= 0x1F6FF) {
+                    result.append(char)
+                    continue
+                }
+            }
+            
+            // 保留颜文字常用符号和其他特殊符号
+            if scalar.value < 0x1F300 ||
+                "()^_-.;:oO><｡◕‿♪★☆♡♥✨💫🚀💯👍🔥💖".contains(char) {
+                result.append(char)
+            }
+        }
+        
+        return result
+    }
+}
+
+
 // MARK: - ReactTextBar 组合组件
 /// 带有漂浮圆形的气泡框组合组件（水平居中）
 struct ReactTextBarWithCircle: View {
@@ -115,6 +170,11 @@ private struct BubbleContent: View {
     @State private var typingTask: Task<Void, Never>? = nil  // 真正可取消的打字 Task
     @State private var textOpacity: Double = 0.0  // 文本透明度，用于淡入效果
     
+    // 标准化处理后的文本
+    private var normalizedText: String {
+        TextNormalizer.normalize(text)
+    }
+
     // 根据展开状态自动选择模版
     private var currentTemplate: ReactTextBarTemplate {
         isExpanded ? .template2 : .template1
@@ -160,8 +220,8 @@ private struct BubbleContent: View {
                             ScrollView {
                                 VStack(alignment: .leading, spacing: 0) {
                                     Text(displayedText.isEmpty ? " " : displayedText)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(textColor)
+                                        .font(.system(size: 16, weight: .medium, design: .rounded))  // 修改font
+                                        .foregroundColor(.black)  // 修改字体颜色
                                         .frame(maxWidth: .infinity, alignment: .topLeading)
                                         .padding(.horizontal, 16)
                                         .padding(.top, 0)
@@ -176,17 +236,17 @@ private struct BubbleContent: View {
                                     Spacer()
                                     Group {
                                         if text.count > 200 {
-                                            Text(String(text.prefix(150)) + "...")
-                                                .font(.system(size: 16))
-                                                .foregroundColor(textColor)
+                                            Text(String(normalizedText.prefix(150)) + "...") // 用 normalizedText
+                                                .font(.system(size: 16, weight: .medium, design: .rounded))  // 改font
+                                                .foregroundColor(.black) // 改字体颜色
                                                 .multilineTextAlignment(.center)
                                                 .lineLimit(4)
                                                 .frame(maxWidth: .infinity, alignment: .center)
                                                 .padding(.horizontal, 16)
                                         } else {
-                                            Text(text.isEmpty ? " " : text)
-                                                .font(.system(size: 16))
-                                                .foregroundColor(textColor)
+                                            Text(normalizedText.isEmpty ? " " : normalizedText) // 用 normalizedText
+                                                .font(.system(size: 16, weight: .medium, design: .rounded))  // 改font
+                                                .foregroundColor(.black) // 改字体颜色
                                                 .multilineTextAlignment(.center)
                                                 .lineLimit(4)
                                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -251,7 +311,7 @@ private struct BubbleContent: View {
                         print("⚡ Bubble expanding, waiting for animation to complete...")
                         cancelTyping()
                         // 捕获当前 text 快照，避免 0.5s 后使用过期值
-                        let snapshot = text
+                        let snapshot = normalizedText
                         typingTask = Task {
                             try? await Task.sleep(nanoseconds: 500_000_000)
                             guard !Task.isCancelled else { return }
@@ -279,7 +339,7 @@ private struct BubbleContent: View {
                             cancelTyping()
                             displayedText = ""
                             textOpacity = 0.0
-                            let snapshot = newValue
+                            let snapshot = normalizedText
                             typingTask = Task {
                                 try? await Task.sleep(nanoseconds: 300_000_000)
                                 guard !Task.isCancelled else { return }
@@ -316,7 +376,7 @@ private struct BubbleContent: View {
                         }
                     } else if isExpanded && !text.isEmpty {
                         print("⚡ View appeared with isExpanded=true, waiting before typewriter")
-                        let snapshot = text
+                        let snapshot = normalizedText
                         typingTask = Task {
                             try? await Task.sleep(nanoseconds: 300_000_000)
                             guard !Task.isCancelled else { return }
