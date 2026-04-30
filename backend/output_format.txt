@@ -14,9 +14,9 @@ Fun Fact: [one short playful makeup-related fact]
 
 examlpe output:
 
-1. No Makeup Detected
+1. Image too blurry due to lighting limitation
 "
-Summary: You have such a fresh and lovely vibe here bestie ✨
+Summary: Could you retake it with clearer lighting so I can help you better? ✨
 
 Details:
 
@@ -28,7 +28,7 @@ Nose: no clear makeup detail visible
 Lips: no clear makeup detail visible
 Cheeks: no clear makeup detail visible
 
-Fun Fact: Soft glossy lips can instantly brighten a natural everyday look.
+Fun Fact: soft front-facing light usually makes makeup details easier to see in photos because it reduces shadows and shows blending more clearly ✨
 "
 
 2. Makeup Detected, No Problem (Clean Placement)
