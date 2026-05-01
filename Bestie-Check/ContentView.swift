@@ -240,7 +240,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 FunFactBubble(
                     text: "Fun Fact ✨",
                     feedbackText: viewModel.bubbleText.isEmpty ? nil : viewModel.bubbleText,
-                    url: nil,
+                    url: URL(string: "https://www.google.com"), // TODO: replace with real URL
                     onDismiss: {
                         showFunFact = false
                         withAnimation(.easeIn(duration: 0.2)) {
@@ -248,10 +248,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                         }
                     }
                 )
-                .padding(.leading, 16)
-                .padding(.bottom, 180)
-                .frame(maxWidth: .infinity, maxHeight: .infinity,
-                       alignment: .bottomLeading)
+                // FunFactBubble uses its own GeometryReader for positioning
+                // Do NOT add padding/frame here — it shrinks the geo and breaks default position
+                .ignoresSafeArea()
                 .allowsHitTesting(true)
                 .zIndex(10)
             }

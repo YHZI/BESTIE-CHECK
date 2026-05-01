@@ -59,7 +59,7 @@ struct ShareTemplateSelectionView: View {
             }
         }
         .fullScreenCover(isPresented: $isGuidePresented) {
-            ShareGuideView(
+            ShareGuideBackUpView(
                 onBack: { isGuidePresented = false },
                 onCapture: { image in
                     isGuidePresented = false

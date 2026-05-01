@@ -17,55 +17,11 @@ enum ReactTextBarTemplate {
 
 // MARK: - Text Normalizer (文字标准化工具)
 struct TextNormalizer {
+    /// 只做空白标准化，不截断任何字符（emoji、颜文字、特殊符号、格式符号全部原样保留）
     static func normalize(_ text: String) -> String {
-        var result = text
-        result = removeEmojisOnly(from: result)
-        result = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        result = result.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        return result
-    }
-    
-    private static func removeEmojisOnly(from text: String) -> String {
-        var result = ""
-        var skipNextChar = false
-        
-        let characters = Array(text)
-        for i in 0..<characters.count {
-            guard !skipNextChar else {
-                skipNextChar = false
-                continue
-            }
-            
-            let char = characters[i]
-            let scalar = char.unicodeScalars.first!
-            
-            // 检查是否是复合 emoji（需要两个 unicode 标量）
-            if i + 1 < characters.count {
-                let nextScalar = characters[i + 1].unicodeScalars.first!
-                
-                // 检查是否是带肤色的 emoji
-                if (0x1F3FB...0x1F3FF).contains(nextScalar.value) {
-                    result.append(char)
-                    skipNextChar = true
-                    continue
-                }
-                
-                // 检查是否是组合 emoji
-                if scalar.properties.isEmojiPresentation ||
-                    (scalar.value >= 0x1F600 && scalar.value <= 0x1F6FF) {
-                    result.append(char)
-                    continue
-                }
-            }
-            
-            // 保留颜文字常用符号和其他特殊符号
-            if scalar.value < 0x1F300 ||
-                "()^_-.;:oO><｡◕‿♪★☆♡♥✨💫🚀💯👍🔥💖".contains(char) {
-                result.append(char)
-            }
-        }
-        
-        return result
+        text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
     }
 }
 

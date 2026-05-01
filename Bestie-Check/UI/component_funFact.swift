@@ -5,21 +5,21 @@
 //  Created by in4matx_inst on 4/27/26.
 //
 
-
 import SwiftUI
+import SafariServices
 
 // MARK: - FunFactBubble
 
-/// 布局：[气泡 →尾巴][LaunchIcon SVG（无背景）]
+/// 布局：[气泡 + 蓝色链接按钮 →尾巴][LaunchIcon + 关闭按钮]
 /// 接口：
 ///   text        — 主标题文字（必填）
 ///   feedbackText — 副文本 / AI feedback（可选，nil 时不显示）
-///   url         — 点击气泡打开的网页链接（可选，nil 时不跳转）
+///   url         — 点击气泡或蓝色按钮打开的网页链接（可选）
 ///   onDismiss   — 关闭回调
 struct FunFactBubble: View {
     let text: String
     var feedbackText: String? = nil
-    var url: URL?             = nil
+    var url: URL?             = URL(string: "https://www.google.com")
     var onDismiss: (() -> Void)? = nil
 
     @State private var isCollapsed:   Bool    = false
@@ -30,6 +30,7 @@ struct FunFactBubble: View {
     @GestureState private var dragDelta: CGSize = .zero
 
     private let iconSize: CGFloat = 44
+    private let linkBtnSize: CGFloat = 28
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
@@ -39,11 +40,12 @@ struct FunFactBubble: View {
                     .opacity(bubbleOpacity)
                     .transition(.identity)
             }
-            iconView
+            iconViewWithClose
         }
         .offset(x: position.width + dragDelta.width,
                 y: position.height + dragDelta.height)
         .gesture(
+            // 拖拽手势只作用于整个 HStack — 实际拖动时用户抓住章鱼
             DragGesture()
                 .updating($dragDelta) { v, state, _ in state = v.translation }
                 .onEnded { v in
@@ -54,12 +56,12 @@ struct FunFactBubble: View {
         .onAppear { expand() }
     }
 
-    // MARK: - Bubble
+    // MARK: - Bubble with blue link button
 
     private var bubbleContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // ── Header row: title + close button ──────────────────────────
-            HStack(alignment: .top, spacing: 0) {
+        ZStack(alignment: .topTrailing) {
+            // 气泡主体
+            VStack(alignment: .leading, spacing: 0) {
                 Text(text)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.primary)
@@ -69,74 +71,120 @@ struct FunFactBubble: View {
                     .padding(.bottom, feedbackText == nil ? 10 : 4)
                     .frame(maxWidth: 200, alignment: .leading)
 
-                Button { collapse() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
+                if let fb = feedbackText, !fb.isEmpty {
+                    Text(fb)
+                        .font(.system(size: 12, weight: .regular))
                         .foregroundStyle(.secondary)
-                        .padding(8)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(3)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 10)
+                        .frame(maxWidth: 200, alignment: .leading)
                 }
-                .padding(.top, 4)
+            }
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.45), lineWidth: 1)
+                }
+            )
+            .overlay(alignment: .trailing) {
+                RightTail()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 10, height: 8)
+                    .offset(x: 9, y: 0)
+            }
+            .shadow(color: .black.opacity(0.14), radius: 8, x: 0, y: 4)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                openSafari()
             }
 
-            // ── Feedback sub-text (optional) ───────────────────────────────
-            if let fb = feedbackText, !fb.isEmpty {
-                Text(fb)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .lineLimit(3)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 10)
-                    .frame(maxWidth: 200, alignment: .leading)
-            }
-
-            // ── URL hint (shown when url is provided) ─────────────────────
+            // 蓝色链接按钮（右上角overlay）
             if url != nil {
-                HStack(spacing: 4) {
-                    Image(systemName: "safari")
-                        .font(.system(size: 10))
-                    Text("Tap to learn more")
-                        .font(.system(size: 11))
-                }
-                .foregroundStyle(.blue.opacity(0.8))
-                .padding(.horizontal, 14)
-                .padding(.bottom, 8)
+                blueLinkButton
+                    .offset(x: 8, y: -8)
             }
-        }
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.45), lineWidth: 1)
-            }
-        )
-        .overlay(alignment: .trailing) {
-            RightTail()
-                .fill(.ultraThinMaterial)
-                .frame(width: 10, height: 8)
-                .offset(x: 9, y: 0)
-        }
-        .shadow(color: .black.opacity(0.14), radius: 8, x: 0, y: 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard let link = url else { return }
-            UIApplication.shared.open(link)
         }
     }
 
-    // MARK: - Icon
+    // MARK: - Blue circular link button
 
-    private var iconView: some View {
+    private var blueLinkButton: some View {
         ZStack {
-            if isCollapsed {
-                FunFactBreathingGlow(radius: iconSize / 2)
-                    .opacity(glowOpacity)
-            }
-            Image("LaunchIcon")
-                .renderingMode(.original)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: iconSize, height: iconSize)
+            // 蓝色呼吸光晕
+            LinkBreathingGlow(diameter: linkBtnSize)
+
+            // 圆形按钮
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(red: 0.25, green: 0.55, blue: 1.0),
+                                 Color(red: 0.12, green: 0.38, blue: 0.95)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: linkBtnSize, height: linkBtnSize)
+                .shadow(color: Color.blue.opacity(0.4), radius: 4, x: 0, y: 2)
+                .overlay {
+                    Image(systemName: "safari.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
         }
+        .onTapGesture {
+            openSafari()
+        }
+    }
+
+    // MARK: - Icon with close button
+
+    private var iconViewWithClose: some View {
+        ZStack(alignment: .topTrailing) {
+            // 章鱼图标
+            ZStack {
+                if isCollapsed {
+                    FunFactBreathingGlow(radius: iconSize / 2)
+                        .opacity(glowOpacity)
+                }
+                Image("LaunchIcon")
+                    .renderingMode(.original)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: iconSize, height: iconSize)
+            }
+
+            // 关闭按钮（右上角）
+            Button { collapse() } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color(uiColor: .systemBackground).opacity(0.92))
+                        .frame(width: 18, height: 18)
+                        .shadow(color: .black.opacity(0.20), radius: 3, x: 0, y: 1)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .offset(x: 4, y: -4)
+        }
+    }
+
+    // MARK: - Open Safari browser
+
+    private func openSafari() {
+        guard let link = url else { return }
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root  = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+        else { return }
+
+        let vc = SFSafariViewController(url: link)
+        vc.preferredControlTintColor = .systemBlue
+
+        // 找到最顶层的 presented vc
+        var top = root
+        while let presented = top.presentedViewController { top = presented }
+        top.present(vc, animated: true)
     }
 
     // MARK: - Animations
@@ -161,6 +209,29 @@ struct FunFactBubble: View {
     }
 }
 
+// MARK: - Blue breathing glow
+
+private struct LinkBreathingGlow: View {
+    let diameter: CGFloat
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<3, id: \.self) { i in
+                let expand = CGFloat(i + 1) * 3
+                Circle()
+                    .fill(Color.blue.opacity(pulse ? 0.0 : Double(3 - i) * 0.28))
+                    .frame(width: diameter + expand, height: diameter + expand)
+                    .blur(radius: CGFloat(1 + i))
+                    .scaleEffect(pulse ? 1.12 : 1.0)
+                    .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)
+                        .delay(Double(i) * 0.28), value: pulse)
+            }
+        }
+        .onAppear { pulse = true }
+    }
+}
+
 // MARK: - Right-pointing tail
 
 private struct RightTail: Shape {
@@ -182,7 +253,7 @@ struct FunFactBreathingGlow: View {
 
     var body: some View {
         ZStack {
-            ForEach(0..<3) { i in
+            ForEach(0..<3, id: \.self) { i in
                 Circle()
                     .stroke(
                         LinearGradient(
@@ -220,7 +291,7 @@ struct FunFactBreathingGlow: View {
         FunFactBubble(
             text: "Did you know? 👀",
             feedbackText: "Your eyebrow raise is 78% — you look naturally expressive today! ✨",
-            url: URL(string: "https://example.com"),
+            url: URL(string: "https://www.google.com"),
             onDismiss: {}
         )
         .padding(32)
