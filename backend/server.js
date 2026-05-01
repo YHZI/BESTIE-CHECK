@@ -10,12 +10,14 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
 const mainPromptPath = path.join(__dirname, 'main_prompt.txt');
 const outputRulePath = path.join(__dirname, 'output_rule.txt');
+const outputFormatPath = path.join(__dirname, 'output_format.txt');
 let geminiStaticPrompt = '';
 
 try {
   const mainPrompt = fs.readFileSync(mainPromptPath, 'utf8').trim();
   const outputRule = fs.readFileSync(outputRulePath, 'utf8').trim();
-  geminiStaticPrompt = [mainPrompt, outputRule].filter(Boolean).join('\n\n');
+  const outputFormat = fs.readFileSync(outputFormatPath, 'utf8').trim();
+  geminiStaticPrompt = [mainPrompt, outputRule, outputFormat].filter(Boolean).join('\n\n');
 } catch (error) {
   console.error(`Failed to load Gemini prompt files from ${mainPromptPath} and ${outputRulePath}:`, error);
   process.exit(1);
@@ -66,7 +68,10 @@ app.post('/api/face-analysis', async (req, res) => {
     }
 
     // 构建给模型的 prompt（结构化数据摘要）
-    const prompt = buildPrompt(face_analysis);
+    const textPart = `${geminiStaticPrompt}
+
+    Image / face analysis data:
+    ${buildPrompt(face_analysis)}`;
     // 组装 user parts：先文字，若有图则加 inline_data（多模态）
     const userParts = [{ text: textPart }];
     if (image_base64 && typeof image_base64 === 'string' && image_base64.length > 0) {
@@ -93,7 +98,7 @@ app.post('/api/face-analysis', async (req, res) => {
             }
           ],
           generation_config: {
-            max_output_tokens: 80,
+            max_output_tokens: 300,
             temperature: 0.7
           }
         })
@@ -195,7 +200,7 @@ function buildPrompt(faceAnalysis) {
     }
   }
 
-  prompt += 'Give me a brief, fun comment about this expression.';
+  prompt += 'Use the image and this face-analysis data only as supporting context. Generate makeup feedback according to the system instructions above.';
 
   return prompt;
 }
