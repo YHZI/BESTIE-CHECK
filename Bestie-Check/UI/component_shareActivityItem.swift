@@ -256,7 +256,7 @@ private nonisolated func _renderShareImage(
         let textPadV:  CGFloat = bubbleH * 0.12
         let textRect   = bubbleRect.insetBy(dx: textPadH, dy: textPadV)
 
-        let bubbleFont = UIFont.systemFont(ofSize: bubbleH * 0.13, weight: .regular)
+        let bubbleFont = UIFont.systemFont(ofSize: bubbleH * 0.10, weight: .regular)
         let paraStyle  = NSMutableParagraphStyle()
         paraStyle.lineSpacing    = bubbleH * 0.02
         paraStyle.alignment      = .left

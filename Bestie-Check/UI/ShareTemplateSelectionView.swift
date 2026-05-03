@@ -11,6 +11,7 @@ struct ShareTemplateSelectionView: View {
     var onDismiss: () -> Void
 
     @State private var isGuidePresented: Bool = false
+    @State private var isCameraPresented: Bool = false
     @State private var previewImage: UIImage? = nil
     @State private var isShowingRetakeReminder: Bool = false
 
@@ -20,8 +21,8 @@ struct ShareTemplateSelectionView: View {
     var body: some View {
         ZStack {
             // 实时相机背景：保持在视图树中以避免重建，isActive=false 时暂停 session
-            // 让位给相机 picker（避免两个 AVCaptureSession 争抢前置摄像头）
-            CameraPreview(isActive: !isGuidePresented)
+            // guide 显示时相机继续运行，只有系统相机 picker 打开时才暂停
+            CameraPreview(isActive: !isCameraPresented)
                 .ignoresSafeArea()
             Color.black.opacity(0.5).ignoresSafeArea()
 
@@ -41,6 +42,34 @@ struct ShareTemplateSelectionView: View {
                     .padding(.bottom, UIScreen.main.bounds.height * 0.03)
                     .padding(.top, 12)
             }
+            .opacity(isGuidePresented ? 0 : 1)
+            
+            // ── Guide overlay component (stacked on top, allows camera to show through) ────
+            if isGuidePresented {
+                ShareGuideBackUpOverlay(
+                    onBack: { 
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            isGuidePresented = false 
+                        }
+                    },
+                    onContinue: { 
+                        isCameraPresented = true 
+                    }
+                )
+                .transition(.opacity)
+            }
+        }
+        .fullScreenCover(isPresented: $isCameraPresented) {
+            ShareCameraPicker { image in
+                isCameraPresented = false
+                isGuidePresented = false
+                if let image {
+                    previewImage = image
+                    isShowingRetakeReminder = true
+                    onNewPhoto(image)
+                }
+            }
+            .ignoresSafeArea()
         }
         .onAppear {
             if let img = composedImage {
@@ -57,20 +86,6 @@ struct ShareTemplateSelectionView: View {
                     isShowingRetakeReminder = false
                 }
             }
-        }
-        .fullScreenCover(isPresented: $isGuidePresented) {
-            ShareGuideBackUpView(
-                onBack: { isGuidePresented = false },
-                onCapture: { image in
-                    isGuidePresented = false
-                    previewImage = image
-                    isShowingRetakeReminder = true
-                    onNewPhoto(image)
-                },
-                sharePreviewImage: preCapturedImage,
-                replyText: replyText
-            )
-            .ignoresSafeArea()
         }
     }
 

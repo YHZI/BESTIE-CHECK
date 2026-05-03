@@ -1,24 +1,20 @@
 //
-//  ShareGuideBackUpView.swift
+//  component_ShareGuideBackUp.swift
 //  Bestie-Check
 //
-//  Created by in4matx_inst on 4/30/26.
+//  Created by in4matx_inst on 5/3/26.
+//  Share guide backup overlay component that can be stacked on top of other views.
 //
 
 import SwiftUI
 
-/// A full-screen guide overlay shown before switching to the system camera.
-/// Drop-in replacement for ShareGuideView — same interface, simpler UI.
-struct ShareGuideBackUpView: View {
+/// A semi-transparent overlay component with bubble + buttons, designed to stack on top of camera preview.
+/// Unlike fullScreenCover, this allows the underlying view to show through.
+struct ShareGuideBackUpOverlay: View {
 
-    // MARK: - Interface (mirrors ShareGuideView)
+    // MARK: - Interface
     var onBack: () -> Void
-    var onCapture: (UIImage) -> Void
-    var sharePreviewImage: UIImage? = nil
-    var replyText: String = ""
-
-    // MARK: - Private state
-    @State private var isCameraPresented: Bool = false
+    var onContinue: () -> Void
 
     // The guide message
     private let guideText = "Next, we'll switch to the system camera. Please take a new photo, and then we'll use your new photo to help you create a new share."
@@ -26,18 +22,7 @@ struct ShareGuideBackUpView: View {
 
     var body: some View {
         ZStack {
-            // ── Background: sharePreviewImage + dark overlay ─────────────
-            Group {
-                if let img = sharePreviewImage {
-                    Image(uiImage: img)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Color.black
-                }
-            }
-            .ignoresSafeArea()
-
+            // ── Semi-transparent dark overlay ─────────────────────────────
             Color.black.opacity(0.70)
                 .ignoresSafeArea()
 
@@ -60,7 +45,7 @@ struct ShareGuideBackUpView: View {
                                 .fill(bubbleColor.opacity(0.55))
                         )
 
-                    // LogoFrame — matches the full ZStack width; getPos() pins it to the cutout
+                    // LogoFrame in the cutout area
                     LogoFrame(
                         horizontalOffset: -6,
                         verticalOffset: 0,
@@ -68,11 +53,10 @@ struct ShareGuideBackUpView: View {
                         isGlowing: false,
                         onTap: nil
                     )
-                    // Give LogoFrame an explicit height equal to the cutout height so getPos() works
                     .frame(height: CutoutPositionCalculator.cutoutHeight * 2)
                     .allowsHitTesting(false)
                 }
-                .padding(.top, 140)
+                .padding(.top, 160)
                 .padding(.horizontal, 20)
 
                 Spacer()
@@ -93,10 +77,8 @@ struct ShareGuideBackUpView: View {
                             .clipShape(Capsule())
                     }
 
-                    // Continue → open system camera
-                    Button {
-                        isCameraPresented = true
-                    } label: {
+                    // Continue button
+                    Button(action: onContinue) {
                         HStack(spacing: 8) {
                             Text("Continue")
                                 .font(.system(size: 15, weight: .semibold))
@@ -115,22 +97,23 @@ struct ShareGuideBackUpView: View {
                 .padding(.horizontal, 20)
             }
         }
-        .fullScreenCover(isPresented: $isCameraPresented) {
-            ShareCameraPicker { image in
-                isCameraPresented = false
-                if let image {
-                    onCapture(image)
-                }
-            }
-            .ignoresSafeArea()
-        }
     }
 }
 
 // MARK: - Preview
 #Preview {
-    ShareGuideBackUpView(
-        onBack: {},
-        onCapture: { _ in }
-    )
+    ZStack {
+        // Simulated camera preview background
+        LinearGradient(
+            colors: [.blue.opacity(0.3), .purple.opacity(0.3)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+        
+        ShareGuideBackUpOverlay(
+            onBack: { print("Back tapped") },
+            onContinue: { print("Continue tapped") }
+        )
+    }
 }

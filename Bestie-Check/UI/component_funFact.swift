@@ -11,11 +11,7 @@ import SafariServices
 // MARK: - FunFactBubble
 
 /// 布局：[气泡 + 蓝色链接按钮 →尾巴][LaunchIcon + 关闭按钮]
-/// 接口：
-///   text        — 主标题文字（必填）
-///   feedbackText — 副文本 / AI feedback（可选，nil 时不显示）
-///   url         — 点击气泡或蓝色按钮打开的网页链接（可选）
-///   onDismiss   — 关闭回调
+/// 功能：记忆上次关闭位置，下次在原位置打开
 struct FunFactBubble: View {
     let text: String
     var feedbackText: String? = nil
@@ -28,6 +24,12 @@ struct FunFactBubble: View {
     @State private var glowOpacity:   Double  = 0.0
     @State private var position:      CGSize  = .zero
     @GestureState private var dragDelta: CGSize = .zero
+    @State private var hasLoadedSavedPosition: Bool = false
+
+    // 持久化位置存储
+    @AppStorage("funFactBubbleX") private var savedX: Double = 0
+    @AppStorage("funFactBubbleY") private var savedY: Double = 0
+    @AppStorage("funFactHasSavedPosition") private var hasSavedPosition: Bool = false
 
     private let iconSize: CGFloat = 44
     private let linkBtnSize: CGFloat = 28
@@ -45,15 +47,21 @@ struct FunFactBubble: View {
         .offset(x: position.width + dragDelta.width,
                 y: position.height + dragDelta.height)
         .gesture(
-            // 拖拽手势只作用于整个 HStack — 实际拖动时用户抓住章鱼
             DragGesture()
                 .updating($dragDelta) { v, state, _ in state = v.translation }
                 .onEnded { v in
                     position.width  += v.translation.width
                     position.height += v.translation.height
+                    // 实时保存位置
+                    savePosition()
                 }
         )
-        .onAppear { expand() }
+        .onAppear {
+            guard !hasLoadedSavedPosition else { return }
+            hasLoadedSavedPosition = true
+            loadInitialPosition()
+            expand()
+        }
     }
 
     // MARK: - Bubble with blue link button
@@ -170,6 +178,25 @@ struct FunFactBubble: View {
         }
     }
 
+    // MARK: - Position management
+
+    private func loadInitialPosition() {
+        if hasSavedPosition {
+            // 恢复上次保存的位置
+            position = CGSize(width: savedX, height: savedY)
+        } else {
+            // 默认位置：屏幕底部居中
+            let screen = UIScreen.main.bounds
+            position = CGSize(width: 0, height: screen.height / 2 - 40)
+        }
+    }
+
+    private func savePosition() {
+        savedX = position.width
+        savedY = position.height
+        hasSavedPosition = true
+    }
+
     // MARK: - Open Safari browser
 
     private func openSafari() {
@@ -197,6 +224,9 @@ struct FunFactBubble: View {
     }
 
     private func collapse() {
+        // 关闭前保存最终位置
+        savePosition()
+        
         withAnimation(.spring(response: 0.44, dampingFraction: 0.82)) {
             bubbleScale   = 0.0
             bubbleOpacity = 0.0
@@ -209,7 +239,7 @@ struct FunFactBubble: View {
     }
 }
 
-// MARK: - Blue breathing glow
+// MARK: - Blue breathing glow (tight around circle button)
 
 private struct LinkBreathingGlow: View {
     let diameter: CGFloat
@@ -218,11 +248,11 @@ private struct LinkBreathingGlow: View {
     var body: some View {
         ZStack {
             ForEach(0..<3, id: \.self) { i in
-                let expand = CGFloat(i + 1) * 3
+                let expand = CGFloat(i + 1) * 3   // 3/6/9 pt — stays close to circle
                 Circle()
                     .fill(Color.blue.opacity(pulse ? 0.0 : Double(3 - i) * 0.28))
                     .frame(width: diameter + expand, height: diameter + expand)
-                    .blur(radius: CGFloat(1 + i))
+                    .blur(radius: CGFloat(1 + i))  // 1/2/3 pt — subtle
                     .scaleEffect(pulse ? 1.12 : 1.0)
                     .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)
                         .delay(Double(i) * 0.28), value: pulse)
@@ -245,38 +275,33 @@ private struct RightTail: Shape {
     }
 }
 
-// MARK: - Breathing glow (shared — used by FunFactBubble & LogoFrame)
+// MARK: - FunFactBreathingGlow (shared)
 
 struct FunFactBreathingGlow: View {
     let radius: CGFloat
-    @State private var pulse: Bool = false
-
+    @State private var pulse = false
     var body: some View {
         ZStack {
             ForEach(0..<3, id: \.self) { i in
+                let size = (radius * 2) + CGFloat(i + 1) * 10
                 Circle()
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0x69/255.0, green: 0xAC/255.0, blue: 0x14/255.0),
-                                Color(red: 0x49/255.0, green: 0x3D/255.0, blue: 0x89/255.0),
-                                Color(red: 0xF8/255.0, green: 0x4C/255.0, blue: 0x4C/255.0),
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 2.5
+                    .frame(width: size, height: size)
+                    .overlay(
+                        Circle().stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0x69/255.0, green: 0xAC/255.0, blue: 0x14/255.0),
+                                    Color(red: 0x49/255.0, green: 0x3D/255.0, blue: 0x89/255.0),
+                                    Color(red: 0xF8/255.0, green: 0x4C/255.0, blue: 0x4C/255.0),
+                                ],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ), lineWidth: 2.5
+                        )
                     )
-                    .frame(width:  (radius * 2) + CGFloat(i + 1) * 10,
-                           height: (radius * 2) + CGFloat(i + 1) * 10)
                     .opacity(pulse ? 0.0 : Double(3 - i) * 0.25)
                     .scaleEffect(pulse ? 1.4 : 1.0)
-                    .animation(
-                        .easeInOut(duration: 1.6)
-                        .repeatForever(autoreverses: true)
-                        .delay(Double(i) * 0.30),
-                        value: pulse
-                    )
+                    .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)
+                        .delay(Double(i) * 0.30), value: pulse)
             }
         }
         .onAppear { pulse = true }
@@ -287,13 +312,12 @@ struct FunFactBreathingGlow: View {
 
 #Preview {
     ZStack {
-        Color.black.opacity(0.75).ignoresSafeArea()
+        Color.black.opacity(0.6).ignoresSafeArea()
         FunFactBubble(
-            text: "Did you know? 👀",
-            feedbackText: "Your eyebrow raise is 78% — you look naturally expressive today! ✨",
+            text: "Fun fact ✨",
+            feedbackText: "Your eyebrow raise is 78% — you look expressive today!",
             url: URL(string: "https://www.google.com"),
             onDismiss: {}
         )
-        .padding(32)
     }
 }
