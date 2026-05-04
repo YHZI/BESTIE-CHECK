@@ -32,10 +32,8 @@ struct ContentView: View {
     @State private var shareFrozenReplyText: String = ""
     @State private var shareFrozenPreImage: UIImage? = nil
 
-    /// FunFact bubble visibility
-    @State private var showFunFact: Bool = false
-    /// LogoFrame breathing glow — true after FunFact is dismissed
-    @State private var logoGlowing: Bool = false
+    /// FunFact 自动弹出定时器
+    @State private var funFactTimer: DispatchWorkItem? = nil
 
     var onAppReady: (() -> Void)? = nil
 
@@ -120,10 +118,11 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                         horizontalOffset: -6,
                         verticalOffset: 0,
                         imageScale: 1.2,
-                        isGlowing: logoGlowing,
-                        onTap: logoGlowing ? {
-                            logoGlowing = false
-                            showFunFact = true
+                        isGlowing: viewModel.logoGlowing,
+                        onTap: viewModel.logoGlowing ? {
+                            // 只有在呼吸灯亮起时（FunFact 关闭后）才允许点击唤起
+                            viewModel.logoGlowing = false
+                            viewModel.showFunFact = true
                         } : nil
                     )
                         .frame(height: 120)
@@ -135,12 +134,41 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             }
             .zIndex(1)  // 固定 zIndex，不再动态提升
             .shareFlow(isPresented: $isShareCameraPresented, isBubbleExpanded: $isBubbleExpanded, replyText: shareFrozenReplyText, preCapturedImage: shareFrozenPreImage, viewModel: viewModel)
-            .onChange(of: isShareCameraPresented) { _, sharing in
+            .onChange(of: isShareCameraPresented) { oldValue, sharing in
                 // 分享流程打开时暂停 ARSession，避免与 CameraPreview 争抢前置摄像头
                 if sharing {
+                    print("📷 Share flow opened - pausing AR session")
                     viewModel.pauseARSession()
+                    // 打开分享流程时自动收起 FunFact
+                    if viewModel.showFunFact {
+                        viewModel.showFunFact = false
+                    }
+                } else if oldValue == true {
+                    // 只在从 true 变为 false 时恢复（避免初始化时意外调用）
+                    print("📷 Share flow closed - resuming AR session")
+                    // 延迟一点恢复，确保相机资源完全释放
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2秒
+                        viewModel.resumeARSession()
+                    }
+                }
+            }
+            .onChange(of: isBubbleExpanded) { _, expanded in
+                // ReactTextBar 展开状态变化时的处理
+                if expanded {
+                    // 气泡展开 → 启动 2 秒定时器，自动弹出 FunFact
+                    funFactTimer?.cancel()  // 取消之前的定时器（如果有）
+                    let task = DispatchWorkItem { [self] in
+                        guard !viewModel.showFunFact else { return }  // 如果已经显示，跳过
+                        viewModel.showFunFact = true
+                        viewModel.logoGlowing = false  // 关闭 logo 呼吸灯
+                    }
+                    funFactTimer = task
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: task)
                 } else {
-                    viewModel.resumeARSession()
+                    // 气泡收起 → 取消定时器
+                    funFactTimer?.cancel()
+                    funFactTimer = nil
                 }
             }
             
@@ -196,7 +224,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     isLongTextMode: $isLongTextMode,
                     showViewFinderScan: $showViewFinderScan,
                     useRGBBackground: $useRGBBackground,
-                    showFunFact: $showFunFact
+                    showFunFact: $viewModel.showFunFact
                 )
             }
             .zIndex(1000)  // 始终在最前端
@@ -236,15 +264,15 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             }
 
             // ── FunFact floating bubble (draggable overlay) ──────────────
-            if showFunFact {
+            if viewModel.showFunFact {
                 FunFactBubble(
                     text: "Fun Fact ✨",
                     feedbackText: viewModel.bubbleText.isEmpty ? nil : viewModel.bubbleText,
                     url: URL(string: "https://www.google.com"), // TODO: replace with real URL
                     onDismiss: {
-                        showFunFact = false
+                        viewModel.showFunFact = false
                         withAnimation(.easeIn(duration: 0.2)) {
-                            logoGlowing = true
+                            viewModel.logoGlowing = true
                         }
                     }
                 )

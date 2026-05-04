@@ -16,6 +16,7 @@ class ARFrameProvider: NSObject, ObservableObject {
     // MARK: - Properties
     private var arSession: ARSession?
     private var frameContinuation: AsyncStream<TimestampedFrameBox>.Continuation?
+    private var isSessionRunning: Bool = false
     
     /// 输出：最新帧流（带时间戳）
     var frameStream: AsyncStream<TimestampedFrameBox>?
@@ -44,11 +45,13 @@ class ARFrameProvider: NSObject, ObservableObject {
             let configuration = ARFaceTrackingConfiguration()
             configuration.maximumNumberOfTrackedFaces = 1
             arSession?.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+            isSessionRunning = true
             print("✅ ARFaceTrackingConfiguration started")
         } else {
             // 降级：使用 World Tracking（ARKit 会使用后置摄像头）
             let configuration = ARWorldTrackingConfiguration()
             arSession?.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+            isSessionRunning = true
             print("⚠️ ARWorldTrackingConfiguration started (Face Tracking not supported)")
         }
     }
@@ -56,25 +59,40 @@ class ARFrameProvider: NSObject, ObservableObject {
     func stopSession() {
         arSession?.pause()
         arSession = nil
+        isSessionRunning = false
     }
     
     /// 暂停 ARSession（释放摄像头），但保留 arSession 引用以便后续恢复
     func pauseSession() {
+        guard isSessionRunning else {
+            print("⚠️ ARSession already paused, skipping")
+            return
+        }
         arSession?.pause()
+        isSessionRunning = false
         print("⏸️ ARSession paused (camera released)")
     }
     
     /// 恢复 ARSession（重新占用摄像头）
     func resumeSession() {
-        guard let arSession else { return }
+        guard let arSession else {
+            print("❌ Cannot resume: arSession is nil")
+            return
+        }
+        guard !isSessionRunning else {
+            print("⚠️ ARSession already running, skipping resume")
+            return
+        }
         if ARFaceTrackingConfiguration.isSupported {
             let configuration = ARFaceTrackingConfiguration()
             configuration.maximumNumberOfTrackedFaces = 1
             arSession.run(configuration, options: [])
+            isSessionRunning = true
             print("▶️ ARSession resumed (face tracking)")
         } else {
             let configuration = ARWorldTrackingConfiguration()
             arSession.run(configuration, options: [])
+            isSessionRunning = true
             print("▶️ ARSession resumed (world tracking)")
         }
     }
