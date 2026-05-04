@@ -195,7 +195,7 @@ struct FunFactBubble: View {
         } else {
             // 默认位置：屏幕底部居中
             let screen = UIScreen.main.bounds
-            position = CGSize(width: 0, height: screen.height / 2 - 40)
+            position = CGSize(width: 0, height: screen.height / 2 - 10)
         }
     }
 
