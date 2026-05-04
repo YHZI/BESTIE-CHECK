@@ -355,21 +355,18 @@ struct ShareFlowModifier: ViewModifier {
                         if let item = ShareImageActivityItemSource(image: img) {
                             let vc = UIActivityViewController(activityItems: [item], applicationActivities: nil)
                             vc.completionWithItemsHandler = { _, completed, _, _ in
-                                // 异步处理，避免阻塞主线程
+                                // 立即在主线程执行，避免延迟阻塞摄像头
                                 DispatchQueue.main.async {
                                     // 清理资源
                                     item.cleanup()
                                     
-                                    // 延迟执行重置和关闭，确保 UI 动画完成
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                        // 重置 ViewModel 状态
-                                        viewModel.resetToWelcome()
-                                        
-                                        // 再延迟一点关闭分享流程
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                            isPresented = false
-                                            isBubbleExpanded = false
-                                        }
+                                    // 立即重置状态
+                                    viewModel.resetToWelcome()
+                                    
+                                    // 只需短暂延迟关闭 UI，让动画流畅
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        isPresented = false
+                                        isBubbleExpanded = false
                                     }
                                 }
                             }

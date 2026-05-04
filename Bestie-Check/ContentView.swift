@@ -155,9 +155,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 } else if oldValue == true {
                     // 只在从 true 变为 false 时恢复（避免初始化时意外调用）
                     print("📷 Share flow closed - resuming AR session")
-                    // 延迟一点恢复，确保相机资源完全释放
+                    // 短暂延迟恢复，确保 Share UI 完全关闭
                     Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2秒
+                        try? await Task.sleep(nanoseconds: 50_000_000) // 0.05秒
                         viewModel.resumeARSession()
                     }
                 }

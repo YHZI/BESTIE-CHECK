@@ -72,12 +72,18 @@ class FaceMeshAssistantViewModel: ObservableObject {
     
     // MARK: - Initialization
     init() {
-        startFrameProcessing()
+        // 不在 init 中启动 frameProcessing，等待 setupARSession 调用
+        print("🎬 ViewModel initialized, waiting for AR Session setup")
     }
     
     // MARK: - AR Session Management
     func setupARSession(arView: ARView) {
         arFrameProvider.startSession(arView: arView)
+        // AR Session 启动后才开始处理帧
+        if frameTask == nil {
+            print("🎬 Starting frame processing after AR Session setup")
+            startFrameProcessing()
+        }
     }
     
     func stopARSession() {
