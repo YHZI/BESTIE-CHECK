@@ -51,15 +51,7 @@ class ResourcePreloader: ObservableObject {
                     return ("FaceLandmarker Model", elapsed)
                 }
                 
-                // Task 2: 预热 SharedCameraSession
-                group.addTask {
-                    let taskStart = Date()
-                    await self.warmupSharedCamera()
-                    let elapsed = Date().timeIntervalSince(taskStart)
-                    return ("Camera Session", elapsed)
-                }
-                
-                // Task 3: 预热 CIContext（虽然已经在各服务中复用，这里只是确保首次创建在后台）
+                // Task 2: 预热 CIContext（确保首次创建在后台）
                 group.addTask {
                     let taskStart = Date()
                     await self.warmupCIContext()
@@ -67,9 +59,12 @@ class ResourcePreloader: ObservableObject {
                     return ("CIContext", elapsed)
                 }
                 
+                // 注意：不再预热 SharedCameraSession，避免与 ARSession 冲突
+                // SharedCameraSession 将在用户打开分享界面时按需启动
+                
                 // 收集结果并更新进度
                 var completed = 0
-                let totalTasks = 3
+                let totalTasks = 2
                 
                 for await (taskName, elapsed) in group {
                     completed += 1
@@ -85,8 +80,6 @@ class ResourcePreloader: ObservableObject {
                     switch taskName {
                     case "FaceLandmarker Model":
                         self.modelLoadTime = elapsed
-                    case "Camera Session":
-                        self.cameraLoadTime = elapsed
                     case "CIContext":
                         self.ciContextLoadTime = elapsed
                     default:
@@ -121,18 +114,6 @@ class ResourcePreloader: ObservableObject {
             }
             // 触发文件系统预读（iOS 会缓存）
             _ = FileManager.default.fileExists(atPath: modelPath)
-        }.value
-    }
-    
-    /// 预热 SharedCameraSession（触发单例的后台初始化）
-    private func warmupSharedCamera() async {
-        await Task.detached {
-            // 访问单例，触发其后台 prepare()
-            _ = await SharedCameraSession.shared
-            // 等待相机准备完成
-            while await !SharedCameraSession.shared.isPrepared {
-                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
-            }
         }.value
     }
     
