@@ -235,14 +235,19 @@ struct FunFactBubble: View {
         // 关闭前保存最终位置
         savePosition()
         
+        // 立即调用 onDismiss，让外部立即更新状态（如 logoGlowing = true, showFunFact = false）
+        onDismiss?()
+        
+        // 然后播放关闭动画
         withAnimation(.spring(response: 0.44, dampingFraction: 0.82)) {
             bubbleScale   = 0.0
             bubbleOpacity = 0.0
         }
+        
+        // 动画完成后设置内部状态
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
             isCollapsed = true
-            withAnimation(.easeIn(duration: 0.25)) { glowOpacity = 1.0 }
-            onDismiss?()
+            // 不显示内部呼吸灯，因为外部 LogoFrame 已经有了
         }
     }
 }

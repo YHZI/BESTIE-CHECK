@@ -44,12 +44,41 @@ struct AIRequest: Codable {
     let imageBase64: String?  // 可选：如果启用上传整图模式
 }
 
+/// AI 响应详细信息（各部位反馈）
+struct AIResponseDetails: Codable {
+    let eyebrows: String
+    let eyelashes: String
+    let eyeliner: String
+    let aegyoSal: String      // aegyo_sal
+    let nose: String
+    let lips: String
+    let cheeks: String
+}
+
+/// AI 响应结构（匹配后端 JSON 格式）
 struct AIResponse: Codable {
-    let message: String          // 完整回复（兼容旧版）
-    let summary: String?         // 摘要（简短版本）
-    let detail: String?          // 详细内容（完整版本）
-    let funfact: String?         // 趣味知识
-    let error: String?
+    let summary: String          // 总体简短反馈
+    let details: AIResponseDetails  // 各部位详细反馈
+    let funFact: String          // fun_fact 趣味知识
+    let error: String?           // 错误信息（可选）
+    
+    // 兼容旧版：将 details 转换为可读文本
+    var detailsText: String {
+        """
+        Eyebrows: \(details.eyebrows)
+        Eyelashes: \(details.eyelashes)
+        Eyeliner: \(details.eyeliner)
+        Aegyo Sal: \(details.aegyoSal)
+        Nose: \(details.nose)
+        Lips: \(details.lips)
+        Cheeks: \(details.cheeks)
+        """
+    }
+    
+    // 完整消息（用于显示）
+    var message: String {
+        "\(summary)\n\n\(detailsText)"
+    }
 }
 
 // MARK: - Frame with Timestamp

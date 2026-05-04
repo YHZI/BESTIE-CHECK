@@ -15,6 +15,7 @@ import UIKit
 class FaceMeshAssistantViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var bubbleText: String = ""
+    @Published var bubbleTextForShare: String = ""  // 仅用于分享图片的文本（只有 summary）
     @Published var bubbleSummary: String = ""       // AI 响应摘要（先显示）
     @Published var bubbleDetail: String = ""        // AI 响应详情（后显示）
     @Published var funFactText: String = ""         // FunFact 文本
@@ -211,20 +212,25 @@ class FaceMeshAssistantViewModel: ObservableObject {
                 imageBase64: imageBase64
             )
             
-            // 解析结构化响应
-            bubbleSummary = aiResponse.summary ?? aiResponse.message
-            bubbleDetail = aiResponse.detail ?? aiResponse.message
+            // 📝 记录 AI 响应到日志文件（完整 JSON）
+            logAIResponse(aiResponse)
             
-            // 拼接 summary 和 detail：上部分显示 summary，空一行后显示 detail
-            if !bubbleSummary.isEmpty && !bubbleDetail.isEmpty && bubbleSummary != bubbleDetail {
-                bubbleText = bubbleSummary + "\n\n" + bubbleDetail
-            } else {
-                bubbleText = bubbleSummary.isEmpty ? bubbleDetail : bubbleSummary
-            }
+            // 解析新的结构化响应
+            bubbleSummary = aiResponse.summary
+            
+            // 格式化 details：每个部位前加换行，使用 bullet points
+            bubbleDetail = formatDetailsWithBullets(aiResponse.details)
+            
+            // 构造 ReactTextBar 显示文本
+            // 格式：**Summary** + \n + summary + \n + **Detail** + \n + bullets
+            bubbleText = "**Summary**\n\n\(bubbleSummary)\n\n**Detail**\n\(bubbleDetail)"
+            
+            // 构造分享图片文本：只有 summary，不含标题
+            bubbleTextForShare = bubbleSummary
             
             // 更新 FunFact（仅在未锁定时）
-            if !funFactLocked, let funfact = aiResponse.funfact, !funfact.isEmpty {
-                funFactText = funfact
+            if !funFactLocked, !aiResponse.funFact.isEmpty {
+                funFactText = aiResponse.funFact
                 funFactLocked = true  // 锁定，等待下次扫描
             }
             
@@ -306,6 +312,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
         consecutiveFaceFrames = 0
         consecutiveNoFaceFrames = 0
         bubbleText = ""
+        bubbleTextForShare = ""
         bubbleSummary = ""
         bubbleDetail = ""
         funFactText = ""
@@ -338,28 +345,35 @@ class FaceMeshAssistantViewModel: ObservableObject {
     // MARK: - Post-Share Reset
     /// 分享完成后，重置 UI 到欢迎状态：收起气泡、清空AI内容、重填默认问候
     func resetToWelcome() {
-        bubbleAutoHideTask?.cancel()
-        shouldExpandBubble = false          // 气泡收起
-        bubbleText = ""                     // 清空 AI 内容
-        bubbleSummary = ""
-        bubbleDetail = ""
-        isBubbleVisible = true             // 保持可见，显示问候
-        // Do NOT re-enable automatic analysis here.
-        // Auto analysis should only happen once per app launch.
-        hasRepliedForCurrentFaceSession = false
-        stableFaceAnchorWallMs = nil
-        consecutiveFaceFrames = 0
-        consecutiveNoFaceFrames = 0
-        lastSharedImage = nil
-        errorMessage = nil
-        isLoading = false
+        print("🔄 resetToWelcome called")
         
-        // 重置 FunFact 和 Logo 状态
-        showFunFact = false
-        logoGlowing = false
-        // 注意：不解锁 funFactLocked，保持 funFactText 内容直到下次扫描
-        
-        // bubbleText 置空后 ContentView 的 displayText 会自动回退到 "Hello! 😊"
+        // 异步执行重置，避免阻塞主线程
+        Task { @MainActor in
+            bubbleAutoHideTask?.cancel()
+            shouldExpandBubble = false          // 气泡收起
+            bubbleText = ""                     // 清空 AI 内容
+            bubbleTextForShare = ""
+            bubbleSummary = ""
+            bubbleDetail = ""
+            isBubbleVisible = true             // 保持可见，显示问候
+            
+            // Do NOT re-enable automatic analysis here.
+            // Auto analysis should only happen once per app launch.
+            hasRepliedForCurrentFaceSession = false
+            stableFaceAnchorWallMs = nil
+            consecutiveFaceFrames = 0
+            consecutiveNoFaceFrames = 0
+            lastSharedImage = nil
+            errorMessage = nil
+            isLoading = false
+            
+            // 重置 FunFact 和 Logo 状态 - 不自动显示呼吸灯
+            showFunFact = false
+            logoGlowing = false  // 保持关闭，用户需要手动触发
+            // 注意：不解锁 funFactLocked，保持 funFactText 内容直到下次扫描
+            
+            print("✅ resetToWelcome completed")
+        }
     }
 
     // MARK: - Manual Trigger
@@ -381,5 +395,90 @@ class FaceMeshAssistantViewModel: ObservableObject {
     /// 用于 Debug Panel 测试，直接注入文本到气泡（不影响业务逻辑）
     func injectTestText(_ text: String, autoHide: Bool = false, isAIResponse: Bool = true) {
         updateBubble(text: text, autoHide: autoHide, isAIResponse: isAIResponse)
+    }
+    
+    // MARK: - AI Response Logging
+    /// 格式化 details 为 bullet points，每个部位前都有换行符
+    private func formatDetailsWithBullets(_ details: AIResponseDetails) -> String {
+        var result = ""
+        result += "\n• Eyebrows: \(details.eyebrows)"
+        result += "\n• Eyelashes: \(details.eyelashes)"
+        result += "\n• Eyeliner: \(details.eyeliner)"
+        result += "\n• Aegyo Sal: \(details.aegyoSal)"
+        result += "\n• Nose: \(details.nose)"
+        result += "\n• Lips: \(details.lips)"
+        result += "\n• Cheeks: \(details.cheeks)"
+        return result
+    }
+    
+    /// 记录 AI 响应到日志文件（完整 JSON 格式）
+    private func logAIResponse(_ response: AIResponse) {
+        let logPath = "/Users/in4matx_inst/Documents/BESTIE-CHECK/test/ai_responses.txt"
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        
+        // 构造完整的 JSON 字符串（模拟原始响应）
+        let jsonString = """
+        {
+          "summary": "\(response.summary)",
+          "details": {
+            "eyebrows": "\(response.details.eyebrows)",
+            "eyelashes": "\(response.details.eyelashes)",
+            "eyeliner": "\(response.details.eyeliner)",
+            "aegyo_sal": "\(response.details.aegyoSal)",
+            "nose": "\(response.details.nose)",
+            "lips": "\(response.details.lips)",
+            "cheeks": "\(response.details.cheeks)"
+          },
+          "fun_fact": "\(response.funFact)"
+        }
+        """
+        
+        let logEntry = """
+        
+        ========================================
+        Timestamp: \(timestamp)
+        ----------------------------------------
+        Raw JSON Response:
+        \(jsonString)
+        ----------------------------------------
+        Parsed Summary:
+        \(response.summary)
+        
+        Parsed Details:
+          • Eyebrows: \(response.details.eyebrows)
+          • Eyelashes: \(response.details.eyelashes)
+          • Eyeliner: \(response.details.eyeliner)
+          • Aegyo Sal: \(response.details.aegyoSal)
+          • Nose: \(response.details.nose)
+          • Lips: \(response.details.lips)
+          • Cheeks: \(response.details.cheeks)
+        
+        Parsed Fun Fact:
+        \(response.funFact)
+        ========================================
+        
+        """
+        
+        // 异步写入文件，不阻塞主线程
+        Task.detached {
+            do {
+                let fileURL = URL(fileURLWithPath: logPath)
+                let fileHandle = try FileHandle(forWritingTo: fileURL)
+                fileHandle.seekToEndOfFile()
+                if let data = logEntry.data(using: .utf8) {
+                    fileHandle.write(data)
+                }
+                fileHandle.closeFile()
+                print("📝 AI response logged to: \(logPath)")
+            } catch {
+                // 如果文件不存在，创建新文件
+                do {
+                    try logEntry.write(toFile: logPath, atomically: true, encoding: .utf8)
+                    print("📝 Created new log file and logged AI response")
+                } catch {
+                    print("❌ Failed to log AI response: \(error)")
+                }
+            }
+        }
     }
 }

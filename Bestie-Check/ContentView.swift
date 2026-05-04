@@ -103,8 +103,8 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                         shouldExpand: $viewModel.shouldExpandBubble,
                         shareEnabled: !viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                         onShareTapped: {
-                            // 与气泡里显示的文案一致（含长文本测试模式）
-                            shareFrozenReplyText = testText
+                            // 分享图片使用纯 summary 文本（不含标题和格式）
+                            shareFrozenReplyText = viewModel.bubbleTextForShare.isEmpty ? testText : viewModel.bubbleTextForShare
                             shareFrozenPreImage = viewModel.lastSharedImage
                             isShareCameraPresented = true
                         }
@@ -121,11 +121,18 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                         verticalOffset: 0,
                         imageScale: 1.2,
                         isGlowing: viewModel.logoGlowing,
-                        onTap: viewModel.logoGlowing ? {
-                            // 只有在呼吸灯亮起时（FunFact 关闭后）才允许点击唤起
-                            viewModel.logoGlowing = false
-                            viewModel.showFunFact = true
-                        } : nil
+                        onTap: {
+                            // 点击 Logo 时的逻辑
+                            if viewModel.showFunFact {
+                                // 如果 FunFact 已经显示，关闭它
+                                viewModel.showFunFact = false
+                                viewModel.logoGlowing = true  // 显示呼吸灯
+                            } else {
+                                // 如果 FunFact 未显示，打开它
+                                viewModel.logoGlowing = false  // 关闭呼吸灯
+                                viewModel.showFunFact = true
+                            }
+                        }
                     )
                         .frame(height: 120)
                 }
@@ -183,11 +190,20 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 }
             }
             .onChange(of: viewModel.showFunFact) { _, showing in
-                // 监听 FunFact 显示状态变化
+                // 监听 FunFact 显示状态变化，同步 logoGlowing
                 if showing {
-                    // FunFact 被显示（无论是手动还是自动）
+                    // FunFact 被显示 → 关闭呼吸灯
                     funFactShownInCurrentSession = true
-                    print("✨ FunFact shown - marking session")
+                    viewModel.logoGlowing = false
+                    print("✨ FunFact shown - marking session and disabling glow")
+                }
+            }
+            .onChange(of: viewModel.logoGlowing) { _, glowing in
+                // 监听 logoGlowing 变化，确保与 showFunFact 同步
+                if glowing && viewModel.showFunFact {
+                    // 如果呼吸灯亮起但 FunFact 还在显示，这是不一致状态，修正它
+                    print("⚠️ Inconsistent state detected: logoGlowing=true but showFunFact=true, fixing...")
+                    viewModel.logoGlowing = false
                 }
             }
             .onChange(of: viewModel.bubbleText) { oldText, newText in
@@ -305,6 +321,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     url: URL(string: "https://www.google.com"), // TODO: replace with real URL
                     onDismiss: {
                         viewModel.showFunFact = false
+                        // FunFact 关闭后显示呼吸灯，让用户知道可以再次点击
                         withAnimation(.easeIn(duration: 0.2)) {
                             viewModel.logoGlowing = true
                         }
