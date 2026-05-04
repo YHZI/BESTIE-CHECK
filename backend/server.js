@@ -124,16 +124,22 @@ app.post('/api/face-analysis', async (req, res) => {
 
     if (!aiMessage) {
       return res.status(500).json({
-        message: '',
         error: 'Empty response from Gemini'
       });
     }
 
+    let aiResponse;
+    try {
+      aiResponse = JSON.parse(aiMessage);
+    } catch (parseError) {
+      console.error('Failed to parse Gemini JSON response:', parseError, aiMessage);
+      return res.status(500).json({
+        error: 'Invalid JSON response from Gemini'
+      });
+    }
+
     // 返回成功响应
-    res.json({
-      message: aiMessage,
-      error: null
-    });
+    res.json(aiResponse);
 
   } catch (error) {
     console.error('Server error:', error);
