@@ -16,6 +16,8 @@ class FaceLandmarkerService: NSObject {
     // MARK: - Properties
     private var faceLandmarker: FaceLandmarker?
     private let processingQueue = DispatchQueue(label: "com.facemesh.processing", qos: .userInitiated)
+    private var isModelLoading = false
+    private var isModelReady = false
 
     /// 复用同一个 CIContext（创建代价极高，每帧新建会严重拖慢性能）
     private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
@@ -23,9 +25,25 @@ class FaceLandmarkerService: NSObject {
     // MARK: - Initialization
     override init() {
         super.init()
-        // 在后台线程加载模型，避免阻塞 MainActor / UI 渲染
-        processingQueue.async { [weak self] in
-            self?.setupFaceLandmarker()
+        // 不再在 init 中加载模型，改为懒加载或显式调用 prepareModel()
+        print("📦 FaceLandmarkerService initialized (model will load on demand)")
+    }
+    
+    /// 异步准备模型（可由 ResourcePreloader 或首次使用时调用）
+    func prepareModel() async {
+        guard !isModelReady && !isModelLoading else {
+            return
+        }
+        
+        isModelLoading = true
+        
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            processingQueue.async { [weak self] in
+                self?.setupFaceLandmarker()
+                self?.isModelLoading = false
+                self?.isModelReady = true
+                continuation.resume()
+            }
         }
     }
 
@@ -53,7 +71,10 @@ class FaceLandmarkerService: NSObject {
     /// ARKit 前置摄像头的 pixelBuffer 固定为 landscape-right 方向，
     /// 只需尝试 .right（和镜像 .rightMirrored）两次，不再暴力穷举 10 个方向。
     func detectSync(pixelBuffer: CVPixelBuffer) -> FaceLandmarkerResult? {
-        guard let faceLandmarker else { return nil }
+        // 懒加载：如果模型未准备好，返回 nil（上层会在首次调用前通过 prepareModel 预加载）
+        guard let faceLandmarker else {
+            return nil
+        }
 
         // UIImage 路径：ARKit 前置 buffer 固定 .right，尝试 .right 和 .rightMirrored
         if let cgImage = pixelBufferToCGImage(pixelBuffer) {

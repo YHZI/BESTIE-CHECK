@@ -20,11 +20,13 @@ struct ARViewContainer: UIViewRepresentable {
         // 设置 ARView
         arView.automaticallyConfigureSession = false
         
-        // 传递给 ViewModel 以启动 ARSession
-        viewModel.setupARSession(arView: arView)
-        
         // 保存 ARView 引用到 coordinator
         context.coordinator.arView = arView
+        
+        // 延迟 AR 启动到下一帧，让 UI 先渲染，避免阻塞
+        DispatchQueue.main.async {
+            self.viewModel.setupARSession(arView: arView)
+        }
         
         return arView
     }

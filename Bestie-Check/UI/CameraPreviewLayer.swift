@@ -8,54 +8,71 @@
 import SwiftUI
 import AVFoundation
 import UIKit
+import Combine
 
 // MARK: - Shared Session Singleton
 
 /// 全局共享的 AVCaptureSession，在 App 启动时即开始预热，
 /// 避免每次打开 Share 界面都冷启动摄像头。
-final class SharedCameraSession {
+@MainActor
+final class SharedCameraSession: ObservableObject {
     static let shared = SharedCameraSession()
 
     let session = AVCaptureSession()
-    private(set) var isPrepared = false
+    @Published private(set) var isPrepared = false
+    @Published private(set) var isReady = false
 
     private init() {
-        // 在后台线程预热，不阻塞主线程
-        DispatchQueue.global(qos: .userInitiated).async { [self] in
-            prepare()
+        // 完全异步化：在后台线程预热，不阻塞主线程
+        Task.detached(priority: .userInitiated) { [weak self] in
+            await self?.prepare()
         }
     }
 
-    private func prepare() {
+    private func prepare() async {
         guard !isPrepared else { return }
-        session.sessionPreset = .high
+        
+        // 在后台线程执行所有 AVCaptureSession 配置
+        await Task.detached(priority: .userInitiated) {
+            let session = self.session
+            session.sessionPreset = .high
 
-        guard
-            let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
-                       ?? AVCaptureDevice.default(for: .video),
-            let input = try? AVCaptureDeviceInput(device: device),
-            session.canAddInput(input)
-        else { return }
+            guard
+                let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
+                           ?? AVCaptureDevice.default(for: .video),
+                let input = try? AVCaptureDeviceInput(device: device),
+                session.canAddInput(input)
+            else {
+                print("❌ Failed to prepare SharedCameraSession")
+                return
+            }
 
-        session.addInput(input)
-        isPrepared = true
-        // 立即开始跑，等 UI 挂上 previewLayer 后画面就能即时显示
-        session.startRunning()
+            session.addInput(input)
+            
+            // 立即开始跑，等 UI 挂上 previewLayer 后画面就能即时显示
+            session.startRunning()
+            
+            await MainActor.run {
+                self.isPrepared = true
+                self.isReady = true
+                print("✅ SharedCameraSession prepared and running")
+            }
+        }.value
     }
 
     /// 暂停（释放摄像头给相机拍照 picker）
     func pause() {
         guard session.isRunning else { return }
-        DispatchQueue.global(qos: .userInitiated).async { [self] in
-            session.stopRunning()
+        Task.detached(priority: .userInitiated) { [weak self] in
+            self?.session.stopRunning()
         }
     }
 
     /// 恢复（相机拍照 picker 关闭后）
     func resume() {
         guard !session.isRunning else { return }
-        DispatchQueue.global(qos: .userInitiated).async { [self] in
-            session.startRunning()
+        Task.detached(priority: .userInitiated) { [weak self] in
+            self?.session.startRunning()
         }
     }
 }

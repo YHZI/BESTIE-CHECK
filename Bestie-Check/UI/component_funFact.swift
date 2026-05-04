@@ -35,40 +35,44 @@ struct FunFactBubble: View {
     private let linkBtnSize: CGFloat = 28
 
     var body: some View {
-        HStack(alignment: .center, spacing: 0) {
-            if !isCollapsed {
-                bubbleContent
-                    .scaleEffect(bubbleScale, anchor: .trailing)
-                    .opacity(bubbleOpacity)
-                    .transition(.identity)
-            }
-            iconViewWithClose
-        }
-        .offset(x: position.width + dragDelta.width,
-                y: position.height + dragDelta.height)
-        .gesture(
-            DragGesture()
-                .updating($dragDelta) { v, state, _ in state = v.translation }
-                .onEnded { v in
-                    position.width  += v.translation.width
-                    position.height += v.translation.height
-                    // 实时保存位置
-                    savePosition()
+        GeometryReader { geo in
+            HStack(alignment: .center, spacing: 0) {
+                if !isCollapsed {
+                    bubbleContent
+                        .scaleEffect(bubbleScale, anchor: .trailing)
+                        .opacity(bubbleOpacity)
+                        .transition(.identity)
                 }
-        )
-        .onAppear {
-            // 每次出现时重置状态（修复重新打开时不显示的 bug）
-            isCollapsed = false
-            glowOpacity = 0.0  // 重置呼吸灯透明度
-            
-            // 只在第一次加载时读取保存的位置
-            if !hasLoadedSavedPosition {
-                hasLoadedSavedPosition = true
-                loadInitialPosition()
+                iconViewWithClose
             }
-            
-            // 每次都执行展开动画
-            expand()
+            .position(
+                x: geo.size.width / 2 + position.width + dragDelta.width,
+                y: geo.size.height / 2 + position.height + dragDelta.height
+            )
+            .gesture(
+                DragGesture()
+                    .updating($dragDelta) { v, state, _ in state = v.translation }
+                    .onEnded { v in
+                        position.width  += v.translation.width
+                        position.height += v.translation.height
+                        // 实时保存位置
+                        savePosition()
+                    }
+            )
+            .onAppear {
+                // 每次出现时重置状态（修复重新打开时不显示的 bug）
+                isCollapsed = false
+                glowOpacity = 0.0  // 重置呼吸灯透明度
+                
+                // 只在第一次加载时读取保存的位置
+                if !hasLoadedSavedPosition {
+                    hasLoadedSavedPosition = true
+                    loadInitialPosition(screenSize: geo.size)
+                }
+                
+                // 每次都执行展开动画
+                expand()
+            }
         }
     }
 
@@ -188,14 +192,14 @@ struct FunFactBubble: View {
 
     // MARK: - Position management
 
-    private func loadInitialPosition() {
+    private func loadInitialPosition(screenSize: CGSize) {
         if hasSavedPosition {
-            // 恢复上次保存的位置
+            // 恢复上次保存的位置（相对于屏幕中心的偏移）
             position = CGSize(width: savedX, height: savedY)
         } else {
-            // 默认位置：屏幕底部居中
-            let screen = UIScreen.main.bounds
-            position = CGSize(width: 0, height: screen.height / 2 - 10)
+            // 默认位置：屏幕底部居中（相对于中心向下偏移）
+            // 屏幕中心是 (0, 0)，向下是正值，向上是负值
+            position = CGSize(width: 0, height: screenSize.height / 2 - 150)
         }
     }
 

@@ -1,17 +1,14 @@
 import SwiftUI
 
-/// Launch loading container with a 4-step progress behavior:
-/// 1) Random progress in 0...20
-/// 2) Random progress in 60...70
-/// 3) Random progress in 80...95
-/// 4) When the app is detected ready, jump to 100 and enter the app
+/// Launch loading container with real resource loading progress
 struct LaunchLoadingContainerView: View {
     @StateObject private var viewModel = FaceMeshAssistantViewModel()
+    @ObservedObject private var preloader = ResourcePreloader.shared
 
     @State private var contentDidAppear: Bool = false
     @State private var isLoadingVisible: Bool = true
     @State private var contentOpacity: Double = 0
-    @State private var progress: Double = 0
+    @State private var displayProgress: Double = 0
 
     var body: some View {
         ZStack {
@@ -23,12 +20,13 @@ struct LaunchLoadingContainerView: View {
             .allowsHitTesting(!isLoadingVisible)
 
             if isLoadingVisible {
-                LaunchLoadingOverlay(progress: progress)
-                    .transition(.opacity)
+                LaunchLoadingOverlay(
+                    progress: displayProgress,
+                    status: preloader.loadingStatus
+                )
+                .transition(.opacity)
             }
         }
-        // Attach the task to the container (not the overlay) so it isn't cancelled
-        // when isLoadingVisible flips to false and the overlay leaves the hierarchy.
         .task {
             await runProgressSequence()
         }
@@ -36,34 +34,30 @@ struct LaunchLoadingContainerView: View {
 
     private func setProgress(_ value: Double) {
         withAnimation(.easeInOut(duration: 0.45)) {
-            progress = min(max(value, 0), 100)
+            displayProgress = min(max(value, 0), 100)
         }
-    }
-
-    private func random(in range: ClosedRange<Double>) -> Double {
-        Double.random(in: range)
     }
 
     private func runProgressSequence() async {
-        // Step 1: 0...20
-        setProgress(random(in: 0...20))
-        try? await Task.sleep(nanoseconds: 600_000_000)
-
-        // Step 2: 60...70
-        setProgress(random(in: 60...70))
-        try? await Task.sleep(nanoseconds: 650_000_000)
-
-        // Step 3: 80...95
-        setProgress(random(in: 80...95))
-
-        // Step 4: wait until real content is ready, then go 100 and enter.
-        while !contentDidAppear {
-            try? await Task.sleep(nanoseconds: 120_000_000)
+        // 实时监听 preloader 进度
+        while !preloader.isReady || !contentDidAppear {
+            // 使用真实的预加载进度（0-80%）
+            let realProgress = preloader.progress * 0.8
+            setProgress(realProgress)
+            
+            // 如果预加载完成但内容还没 appear，显示 80-95%
+            if preloader.isReady && !contentDidAppear {
+                setProgress(Double.random(in: 80...95))
+            }
+            
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms 更新一次
         }
 
+        // 全部就绪，跳到 100%
         setProgress(100)
         try? await Task.sleep(nanoseconds: 350_000_000)
-        // Pre-render ContentView before fading out overlay to avoid white flash
+        
+        // Pre-render ContentView before fading out overlay
         withAnimation(.easeInOut(duration: 0.2)) {
             contentOpacity = 1.0
         }
@@ -76,6 +70,7 @@ struct LaunchLoadingContainerView: View {
 
 private struct LaunchLoadingOverlay: View {
     var progress: Double
+    var status: String
 
     var body: some View {
         ZStack {
@@ -96,6 +91,11 @@ private struct LaunchLoadingOverlay: View {
                     Text("\(Int(progress))%")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.75))
+                    
+                    Text(status)
+                        .font(.system(size: 10, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(1)
                 }
             }
         }

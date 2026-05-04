@@ -57,7 +57,7 @@ class AIClient {
         // 例如：return "http://192.168.1.100:8080"
         // 查看电脑 IP：macOS 终端运行 `ipconfig getifaddr en0` 或系统设置 → 网络 → Wi-Fi 详情
         //return "http://localhost:8080"  // ⚠️ 真机调试时请改为 http://<你电脑IP>:8080
-        return "http://172.29.239.138:8080"
+        return "http://192.168.1.113:8080"
         #endif
         #else
         // Release 模式：使用生产环境的 HTTPS 地址
@@ -197,11 +197,13 @@ class AIClient {
 
 // MARK: - Helper: CVPixelBuffer to Base64
 extension AIClient {
+    /// 复用同一个 CIContext（创建代价极高，每次新建会严重拖慢性能）
+    private static let sharedCIContext = CIContext(options: [.useSoftwareRenderer: false])
+    
     static func pixelBufferToBase64(_ pixelBuffer: CVPixelBuffer) -> String? {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let context = CIContext()
         
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+        guard let cgImage = sharedCIContext.createCGImage(ciImage, from: ciImage.extent) else {
             return nil
         }
         
@@ -215,8 +217,7 @@ extension AIClient {
 
     static func pixelBufferToUIImage(_ pixelBuffer: CVPixelBuffer) -> UIImage? {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+        guard let cgImage = sharedCIContext.createCGImage(ciImage, from: ciImage.extent) else {
             return nil
         }
         // AR 前置摄像头 pixelBuffer 原始方向为 .right（顺时针 90°）

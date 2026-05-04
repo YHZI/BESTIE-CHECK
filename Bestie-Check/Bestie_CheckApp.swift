@@ -10,9 +10,9 @@ import SwiftUI
 @main
 struct Bestie_CheckApp: App {
     init() {
-        // 在 App 启动时就开始预热相机 session，
-        // 让用户打开 Share 界面时立即看到实时画面
-        _ = SharedCameraSession.shared
+        // 触发资源预加载器（非阻塞，在后台并行加载所有资源）
+        _ = ResourcePreloader.shared
+        print("🚀 App initialized, resource preloading started in background")
     }
 
     var body: some Scene {
