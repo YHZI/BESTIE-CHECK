@@ -57,9 +57,17 @@ struct FunFactBubble: View {
                 }
         )
         .onAppear {
-            guard !hasLoadedSavedPosition else { return }
-            hasLoadedSavedPosition = true
-            loadInitialPosition()
+            // 每次出现时重置状态（修复重新打开时不显示的 bug）
+            isCollapsed = false
+            glowOpacity = 0.0  // 重置呼吸灯透明度
+            
+            // 只在第一次加载时读取保存的位置
+            if !hasLoadedSavedPosition {
+                hasLoadedSavedPosition = true
+                loadInitialPosition()
+            }
+            
+            // 每次都执行展开动画
             expand()
         }
     }
