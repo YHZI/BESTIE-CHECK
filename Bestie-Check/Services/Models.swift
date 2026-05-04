@@ -45,7 +45,10 @@ struct AIRequest: Codable {
 }
 
 struct AIResponse: Codable {
-    let message: String
+    let message: String          // 完整回复（兼容旧版）
+    let summary: String?         // 摘要（简短版本）
+    let detail: String?          // 详细内容（完整版本）
+    let funfact: String?         // 趣味知识
     let error: String?
 }
 

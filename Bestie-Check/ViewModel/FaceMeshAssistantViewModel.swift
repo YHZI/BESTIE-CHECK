@@ -15,6 +15,9 @@ import UIKit
 class FaceMeshAssistantViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var bubbleText: String = ""
+    @Published var bubbleSummary: String = ""       // AI 响应摘要（先显示）
+    @Published var bubbleDetail: String = ""        // AI 响应详情（后显示）
+    @Published var funFactText: String = ""         // FunFact 文本
     @Published var isBubbleVisible: Bool = false
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -29,6 +32,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
     @Published var showFunFact: Bool = false
     /// Logo 呼吸灯效果状态（FunFact 关闭后亮起）
     @Published var logoGlowing: Bool = false
+    /// FunFact 是否已锁定（避免持续刷新）
+    private var funFactLocked: Bool = false
     
     // MARK: - Debug Settings
     @Published var throttleIntervalMs: Int = 200  // 默认 5fps (1000/200)
@@ -200,12 +205,30 @@ class FaceMeshAssistantViewModel: ObservableObject {
             } else {
                 lastSharedImage = nil
             }
-            let aiReply = try await aiClient.getAIReply(
+            let aiResponse = try await aiClient.getAIResponse(
                 summary: summary,
                 includeImage: uploadFullImage,
                 imageBase64: imageBase64
             )
-            updateBubble(text: aiReply, autoHide: true, isAIResponse: true)
+            
+            // 解析结构化响应
+            bubbleSummary = aiResponse.summary ?? aiResponse.message
+            bubbleDetail = aiResponse.detail ?? aiResponse.message
+            
+            // 拼接 summary 和 detail：上部分显示 summary，空一行后显示 detail
+            if !bubbleSummary.isEmpty && !bubbleDetail.isEmpty && bubbleSummary != bubbleDetail {
+                bubbleText = bubbleSummary + "\n\n" + bubbleDetail
+            } else {
+                bubbleText = bubbleSummary.isEmpty ? bubbleDetail : bubbleSummary
+            }
+            
+            // 更新 FunFact（仅在未锁定时）
+            if !funFactLocked, let funfact = aiResponse.funfact, !funfact.isEmpty {
+                funFactText = funfact
+                funFactLocked = true  // 锁定，等待下次扫描
+            }
+            
+            updateBubble(text: bubbleText, autoHide: true, isAIResponse: true)
             hasCompletedFirstAnalysis = true
             isLoading = false
             canRequestReanalysis = true
@@ -283,6 +306,10 @@ class FaceMeshAssistantViewModel: ObservableObject {
         consecutiveFaceFrames = 0
         consecutiveNoFaceFrames = 0
         bubbleText = ""
+        bubbleSummary = ""
+        bubbleDetail = ""
+        funFactText = ""
+        funFactLocked = false  // 解锁 FunFact，允许下次更新
         isBubbleVisible = false
         shouldExpandBubble = false  // 重置展开信号
         lastSharedImage = nil
@@ -304,6 +331,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
         stableFaceAnchorWallMs = nil
         consecutiveFaceFrames = 0
         consecutiveNoFaceFrames = 0
+        // 解锁 FunFact，允许新的分析更新 FunFact
+        funFactLocked = false
     }
     
     // MARK: - Post-Share Reset
@@ -312,6 +341,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
         bubbleAutoHideTask?.cancel()
         shouldExpandBubble = false          // 气泡收起
         bubbleText = ""                     // 清空 AI 内容
+        bubbleSummary = ""
+        bubbleDetail = ""
         isBubbleVisible = true             // 保持可见，显示问候
         // Do NOT re-enable automatic analysis here.
         // Auto analysis should only happen once per app launch.
@@ -326,6 +357,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
         // 重置 FunFact 和 Logo 状态
         showFunFact = false
         logoGlowing = false
+        // 注意：不解锁 funFactLocked，保持 funFactText 内容直到下次扫描
         
         // bubbleText 置空后 ContentView 的 displayText 会自动回退到 "Hello! 😊"
     }

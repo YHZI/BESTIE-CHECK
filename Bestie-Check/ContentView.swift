@@ -34,6 +34,8 @@ struct ContentView: View {
 
     /// FunFact 自动弹出定时器
     @State private var funFactTimer: DispatchWorkItem? = nil
+    /// 标记当前分析会话是否已显示过 FunFact（避免反复触发）
+    @State private var funFactShownInCurrentSession: Bool = false
 
     var onAppReady: (() -> Void)? = nil
 
@@ -95,7 +97,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 ZStack(alignment: .topTrailing) {
                     // 气泡框 - 三个接口：title, text, isExpanded, shouldExpand
                     ReactTextBarWithCircle(
-                        title: "",
+                        title: "Bestie Check",  // ← 硬编码标题
                         text: testText,
                         isExpanded: $isBubbleExpanded,
                         shouldExpand: $viewModel.shouldExpandBubble,
@@ -156,17 +158,44 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             .onChange(of: isBubbleExpanded) { _, expanded in
                 // ReactTextBar 展开状态变化时的处理
                 if expanded {
-                    // 气泡展开 → 启动 2 秒定时器，自动弹出 FunFact
+                    // 气泡展开 → 启动 2 秒定时器，自动弹出 FunFact（但只在未手动显示过的情况下）
+                    guard !funFactShownInCurrentSession else {
+                        print("⏭️ FunFact already shown in this session, skipping auto-trigger")
+                        return
+                    }
+                    
                     funFactTimer?.cancel()  // 取消之前的定时器（如果有）
                     let task = DispatchWorkItem { [self] in
                         guard !viewModel.showFunFact else { return }  // 如果已经显示，跳过
+                        guard !funFactShownInCurrentSession else { return }  // 二次检查
+                        print("⏰ Timer triggered - showing FunFact")
                         viewModel.showFunFact = true
                         viewModel.logoGlowing = false  // 关闭 logo 呼吸灯
+                        funFactShownInCurrentSession = true  // 标记已显示
                     }
                     funFactTimer = task
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: task)
                 } else {
                     // 气泡收起 → 取消定时器
+                    print("📦 ReactTextBar collapsed - canceling timer")
+                    funFactTimer?.cancel()
+                    funFactTimer = nil
+                }
+            }
+            .onChange(of: viewModel.showFunFact) { _, showing in
+                // 监听 FunFact 显示状态变化
+                if showing {
+                    // FunFact 被显示（无论是手动还是自动）
+                    funFactShownInCurrentSession = true
+                    print("✨ FunFact shown - marking session")
+                }
+            }
+            .onChange(of: viewModel.bubbleText) { oldText, newText in
+                // 当 bubbleText 变化时（新的分析结果或重置），重置 FunFact 会话标记
+                if newText.isEmpty && !oldText.isEmpty {
+                    // 从有内容变为空（resetToWelcome）
+                    print("🔄 bubbleText cleared - resetting FunFact session")
+                    funFactShownInCurrentSession = false
                     funFactTimer?.cancel()
                     funFactTimer = nil
                 }
@@ -191,6 +220,10 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                             // 重置 APP 后台检测方法
                             print("🔄 Resetting backend detection...")
                             viewModel.resetDetection()
+                            // 重置 FunFact 会话标记，允许下次触发
+                            funFactShownInCurrentSession = false
+                            funFactTimer?.cancel()
+                            funFactTimer = nil
                         },
                         isLongTextMode: Binding(
                             get: { isLongTextMode ? true : nil },
@@ -266,8 +299,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             // ── FunFact floating bubble (draggable overlay) ──────────────
             if viewModel.showFunFact {
                 FunFactBubble(
-                    text: "Fun Fact ✨",
-                    feedbackText: viewModel.bubbleText.isEmpty ? nil : viewModel.bubbleText,
+                    text: "Fun Fact ✨",                          // ← 硬编码主标题
+                    feedbackText: viewModel.funFactText.isEmpty ? nil : viewModel.funFactText,
+                    //            ↑ 使用 funFactText（锁定机制，不会持续刷新）
                     url: URL(string: "https://www.google.com"), // TODO: replace with real URL
                     onDismiss: {
                         viewModel.showFunFact = false

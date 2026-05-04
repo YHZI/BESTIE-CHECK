@@ -98,7 +98,7 @@ app.post('/api/face-analysis', async (req, res) => {
             }
           ],
           generation_config: {
-            max_output_tokens: 300,
+            max_output_tokens: 1200,
             temperature: 0.7
           }
         })
@@ -149,6 +149,46 @@ app.post('/api/face-analysis', async (req, res) => {
     });
   }
 });
+
+/** 从模型自由文本中解析 Summary / Details / Fun Fact（与 output_format.txt 对齐） */
+function parseStructuredFeedback(raw) {
+  const text = String(raw || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/^\uFEFF/, '')
+    .trim();
+
+  const summaryMatch = text.match(/^Summary:\s*([\s\S]+?)(?=\n\s*Details?\s*:)/i);
+  const detailMatch = text.match(/\n\s*Details?\s*:\s*([\s\S]+?)(?=\n\s*Fun\s*Fact\s*:)/i);
+  const funMatch = text.match(/\n\s*Fun\s*Fact\s*:\s*([\s\S]+)$/i);
+
+  let summary = summaryMatch ? summaryMatch[1].trim() : '';
+  let detail = detailMatch ? detailMatch[1].trim() : '';
+  let funFact = funMatch ? funMatch[1].trim() : '';
+
+  // 去掉示例里偶发的首尾引号
+  const stripQuotes = (s) => s.replace(/^["'\s]+|["'\s]+$/g, '').trim();
+  summary = stripQuotes(summary);
+  detail = stripQuotes(detail);
+  funFact = stripQuotes(funFact);
+
+  if (!summary && !detail && !funFact) {
+    return {
+      summary: text,
+      detail: '',
+      fun_fact: '',
+      message: text
+    };
+  }
+
+  const message = [summary, detail, funFact].filter(Boolean).join('\n\n');
+
+  return {
+    summary: summary || text,
+    detail,
+    fun_fact: funFact,
+    message
+  };
+}
 
 // 构建 prompt 的函数
 function buildPrompt(faceAnalysis) {

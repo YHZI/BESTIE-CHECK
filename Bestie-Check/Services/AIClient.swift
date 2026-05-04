@@ -81,12 +81,12 @@ class AIClient {
     }
     
     // MARK: - API Call
-    /// 发送人脸分析摘要到 AI API，获取文本回复
-    func getAIReply(
+    /// 发送人脸分析摘要到 AI API，获取结构化响应
+    func getAIResponse(
         summary: FaceAnalysisSummary,
         includeImage: Bool = false,
         imageBase64: String? = nil
-    ) async throws -> String {
+    ) async throws -> AIResponse {
         let requestBody = AIRequest(
             faceAnalysis: summary,
             imageBase64: includeImage ? imageBase64 : nil
@@ -111,7 +111,17 @@ class AIClient {
         throw lastError ?? NSError(domain: "AIClient", code: -1, userInfo: [NSLocalizedDescriptionKey: "Request failed after retries"])
     }
     
-    private func performRequest(requestBody: AIRequest) async throws -> String {
+    /// 发送人脸分析摘要到 AI API，获取文本回复（兼容旧版）
+    func getAIReply(
+        summary: FaceAnalysisSummary,
+        includeImage: Bool = false,
+        imageBase64: String? = nil
+    ) async throws -> String {
+        let response = try await getAIResponse(summary: summary, includeImage: includeImage, imageBase64: imageBase64)
+        return response.message
+    }
+    
+    private func performRequest(requestBody: AIRequest) async throws -> AIResponse {
         guard let url = URL(string: config.endpoint) else {
             throw NSError(domain: "AIClient", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid endpoint URL"])
         }
@@ -159,7 +169,7 @@ class AIClient {
             throw NSError(domain: "AIClient", code: -1, userInfo: [NSLocalizedDescriptionKey: error])
         }
         
-        return aiResponse.message
+        return aiResponse
     }
     
     // MARK: - Stream Support (Optional)
