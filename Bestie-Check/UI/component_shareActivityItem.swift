@@ -259,7 +259,7 @@ private nonisolated func _renderShareImage(
         let bubbleFont = UIFont.systemFont(ofSize: bubbleH * 0.10, weight: .regular)
         let paraStyle  = NSMutableParagraphStyle()
         paraStyle.lineSpacing    = bubbleH * 0.02
-        paraStyle.alignment      = .left
+        paraStyle.alignment      = .center  // 水平居中
         paraStyle.lineBreakMode  = .byWordWrapping
 
         let textAttrs: [NSAttributedString.Key: Any] = [
@@ -267,7 +267,25 @@ private nonisolated func _renderShareImage(
             .foregroundColor: UIColor.black.withAlphaComponent(0.80),
             .paragraphStyle:  paraStyle
         ]
-        (shortReply as NSString).draw(with: textRect,
+        
+        // 计算文本实际高度以实现垂直居中
+        let textBoundingRect = (shortReply as NSString).boundingRect(
+            with: CGSize(width: textRect.width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: textAttrs,
+            context: nil
+        )
+        
+        // 垂直居中：计算 Y 偏移
+        let yOffset = (textRect.height - textBoundingRect.height) / 2
+        let centeredTextRect = CGRect(
+            x: textRect.minX,
+            y: textRect.minY + max(0, yOffset),
+            width: textRect.width,
+            height: textBoundingRect.height
+        )
+        
+        (shortReply as NSString).draw(with: centeredTextRect,
                                       options: [.usesLineFragmentOrigin, .usesFontLeading],
                                       attributes: textAttrs,
                                       context: nil)
@@ -337,20 +355,22 @@ struct ShareFlowModifier: ViewModifier {
                         if let item = ShareImageActivityItemSource(image: img) {
                             let vc = UIActivityViewController(activityItems: [item], applicationActivities: nil)
                             vc.completionWithItemsHandler = { _, completed, _, _ in
-                                // 先清理资源
-                                item.cleanup()
-                                
-                                // 使用异步延迟确保UI完全关闭后再更新状态，避免主线程卡死
-                                Task { @MainActor in
-                                    // 先重置 ViewModel 状态（轻量级操作）
-                                    viewModel.resetToWelcome()
+                                // 异步处理，避免阻塞主线程
+                                DispatchQueue.main.async {
+                                    // 清理资源
+                                    item.cleanup()
                                     
-                                    // 短暂延迟后关闭分享流程（让 UIActivityViewController 完全 dismiss）
-                                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
-                                    
-                                    // 关闭分享流程会自动触发 ContentView 的 onChange 来恢复 AR session
-                                    isPresented = false
-                                    isBubbleExpanded = false
+                                    // 延迟执行重置和关闭，确保 UI 动画完成
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        // 重置 ViewModel 状态
+                                        viewModel.resetToWelcome()
+                                        
+                                        // 再延迟一点关闭分享流程
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                            isPresented = false
+                                            isBubbleExpanded = false
+                                        }
+                                    }
                                 }
                             }
                             if let popover = vc.popoverPresentationController {

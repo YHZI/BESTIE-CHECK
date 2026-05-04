@@ -17,11 +17,11 @@ enum ReactTextBarTemplate {
 
 // MARK: - Text Normalizer (文字标准化工具)
 struct TextNormalizer {
-    /// 只做空白标准化，不截断任何字符（emoji、颜文字、特殊符号、格式符号全部原样保留）
+    /// 标准化文本：保留换行符和格式，只合并连续空格
     static func normalize(_ text: String) -> String {
         text
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: " +", with: " ", options: .regularExpression)  // 只合并连续空格，不影响 \n
     }
 }
 
@@ -31,8 +31,6 @@ struct TextNormalizer {
 struct ReactTextBarWithCircle: View {
     let title: String
     let text: String
-    /// 展开后打字机区域优先使用该文案（例如 AI `detail`）；为空时仍用 `text`
-    var expandedBody: String? = nil
     var titleColor: Color = .primary
     var textColor: Color = .secondary
     @Binding var isExpanded: Bool  // 添加绑定来暴露展开状态
@@ -48,7 +46,6 @@ struct ReactTextBarWithCircle: View {
             BubbleContent(
                 title: title,
                 text: text,
-                expandedBody: expandedBody,
                 titleColor: titleColor,
                 textColor: textColor,
                 isExpanded: $isExpanded,
@@ -84,7 +81,6 @@ struct ReactTextBar: View {
         BubbleContent(
             title: title,
             text: text,
-            expandedBody: nil,
             titleColor: titleColor,
             textColor: textColor,
             isExpanded: $isExpandedLocal,
@@ -107,7 +103,6 @@ struct ReactTextBar: View {
 private struct BubbleContent: View {
     let title: String
     let text: String
-    var expandedBody: String? = nil
     var titleColor: Color = .primary
     var textColor: Color = .secondary
     @Binding var isExpanded: Bool
@@ -134,13 +129,6 @@ private struct BubbleContent: View {
     // 标准化处理后的文本
     private var normalizedText: String {
         TextNormalizer.normalize(text)
-    }
-
-    /// 展开态打字机全文：有 `expandedBody` 时保留换行（不跑 aggressive normalize）
-    private var expandedTypewriterSource: String {
-        let raw = expandedBody?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !raw.isEmpty { return raw }
-        return normalizedText
     }
 
     // 根据展开状态自动选择模版
@@ -279,7 +267,7 @@ private struct BubbleContent: View {
                         print("⚡ Bubble expanding, waiting for animation to complete...")
                         cancelTyping()
                         // 捕获当前 text 快照，避免 0.5s 后使用过期值
-                        let snapshot = expandedTypewriterSource
+                        let snapshot = normalizedText
                         typingTask = Task {
                             try? await Task.sleep(nanoseconds: 500_000_000)
                             guard !Task.isCancelled else { return }
@@ -307,26 +295,13 @@ private struct BubbleContent: View {
                             cancelTyping()
                             displayedText = ""
                             textOpacity = 0.0
-                            let snapshot = expandedTypewriterSource
+                            let snapshot = normalizedText
                             typingTask = Task {
                                 try? await Task.sleep(nanoseconds: 300_000_000)
                                 guard !Task.isCancelled else { return }
                                 startTypewriterEffect(fullText: snapshot)
                             }
                         }
-                    }
-                }
-                .onChange(of: expandedBody) { _, _ in
-                    guard isExpanded else { return }
-                    print("🔄 expandedBody changed while expanded — restarting typewriter")
-                    cancelTyping()
-                    displayedText = ""
-                    textOpacity = 0.0
-                    let snapshot = expandedTypewriterSource
-                    typingTask = Task {
-                        try? await Task.sleep(nanoseconds: 300_000_000)
-                        guard !Task.isCancelled else { return }
-                        startTypewriterEffect(fullText: snapshot)
                     }
                 }
                 .onChange(of: shouldExpand) { oldValue, newValue in
@@ -355,9 +330,9 @@ private struct BubbleContent: View {
                                 isExpanded = true
                             }
                         }
-                    } else if isExpanded && !expandedTypewriterSource.isEmpty {
+                    } else if isExpanded && !text.isEmpty {
                         print("⚡ View appeared with isExpanded=true, waiting before typewriter")
-                        let snapshot = expandedTypewriterSource
+                        let snapshot = normalizedText
                         typingTask = Task {
                             try? await Task.sleep(nanoseconds: 300_000_000)
                             guard !Task.isCancelled else { return }
