@@ -44,44 +44,12 @@ struct AIRequest: Codable {
     let imageBase64: String?  // 可选：如果启用上传整图模式
 }
 
-/// 后端 `POST /api/face-analysis` 返回体（兼容仅含 `message` 的旧格式）
 struct AIResponse: Codable {
-    let message: String?
-    let summary: String?
-    let detail: String?
-    let funFact: String?
+    let message: String          // 完整回复（兼容旧版）
+    let summary: String?         // 摘要（简短版本）
+    let detail: String?          // 详细内容（完整版本）
+    let funfact: String?         // 趣味知识
     let error: String?
-
-    /// 解析为三段式反馈；缺字段时回退到 `message` 整段作为 summary
-    func toFeedback() -> AIFeedback {
-        let msg = (message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let s = (summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let d = (detail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let f = (funFact ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if s.isEmpty, d.isEmpty, f.isEmpty, !msg.isEmpty {
-            return AIFeedback(summary: msg, detail: "", funFact: "")
-        }
-        return AIFeedback(
-            summary: s.isEmpty ? msg : s,
-            detail: d,
-            funFact: f
-        )
-    }
-}
-
-/// AI 结构化妆容反馈（与后端 summary / detail / fun_fact 对应）
-struct AIFeedback: Sendable {
-    let summary: String
-    let detail: String
-    let funFact: String
-
-    var composedForShare: String {
-        [summary, detail, funFact]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n\n")
-    }
 }
 
 // MARK: - Frame with Timestamp

@@ -97,19 +97,14 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 ZStack(alignment: .topTrailing) {
                     // 气泡框 - 三个接口：title, text, isExpanded, shouldExpand
                     ReactTextBarWithCircle(
-                        title: isLongTextMode ? "" : viewModel.bubbleSummary,
+                        title: "Bestie Check",  // ← 硬编码标题
                         text: testText,
-                        expandedBody: isLongTextMode
-                            ? testText
-                            : (viewModel.bubbleDetail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? nil
-                                : viewModel.bubbleDetail),
                         isExpanded: $isBubbleExpanded,
                         shouldExpand: $viewModel.shouldExpandBubble,
-                        shareEnabled: !viewModel.composedShareText()
-                            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                        shareEnabled: !viewModel.bubbleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                         onShareTapped: {
-                            shareFrozenReplyText = isLongTextMode ? testText : viewModel.composedShareText()
+                            // 与气泡里显示的文案一致（含长文本测试模式）
+                            shareFrozenReplyText = testText
                             shareFrozenPreImage = viewModel.lastSharedImage
                             isShareCameraPresented = true
                         }
@@ -196,7 +191,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 }
             }
             .onChange(of: viewModel.bubbleText) { oldText, newText in
-                // 当主气泡文案清空时（新的分析结果或重置），重置 FunFact 会话标记
+                // 当 bubbleText 变化时（新的分析结果或重置），重置 FunFact 会话标记
                 if newText.isEmpty && !oldText.isEmpty {
                     // 从有内容变为空（resetToWelcome）
                     print("🔄 bubbleText cleared - resetting FunFact session")
@@ -304,12 +299,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             // ── FunFact floating bubble (draggable overlay) ──────────────
             if viewModel.showFunFact {
                 FunFactBubble(
-                    text: viewModel.bubbleFunFact.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? "Fun Fact ✨"
-                        : viewModel.bubbleFunFact,
-                    feedbackText: viewModel.bubbleSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? nil
-                        : viewModel.bubbleSummary,
+                    text: "Fun Fact ✨",                          // ← 硬编码主标题
+                    feedbackText: viewModel.funFactText.isEmpty ? nil : viewModel.funFactText,
+                    //            ↑ 使用 funFactText（锁定机制，不会持续刷新）
                     url: URL(string: "https://www.google.com"), // TODO: replace with real URL
                     onDismiss: {
                         viewModel.showFunFact = false
@@ -318,8 +310,6 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                         }
                     }
                 )
-                // 强制每次重建 View，避免状态污染
-                .id(UUID())
                 // FunFactBubble uses its own GeometryReader for positioning
                 // Do NOT add padding/frame here — it shrinks the geo and breaks default position
                 .ignoresSafeArea()
