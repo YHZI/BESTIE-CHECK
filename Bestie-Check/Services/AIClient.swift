@@ -81,12 +81,12 @@ class AIClient {
     }
     
     // MARK: - API Call
-    /// 发送人脸分析摘要到 AI API，获取文本回复
+    /// 发送人脸分析摘要到 AI API，获取结构化回复（summary / detail / funFact）
     func getAIReply(
         summary: FaceAnalysisSummary,
         includeImage: Bool = false,
         imageBase64: String? = nil
-    ) async throws -> String {
+    ) async throws -> AIFeedback {
         let requestBody = AIRequest(
             faceAnalysis: summary,
             imageBase64: includeImage ? imageBase64 : nil
@@ -111,7 +111,7 @@ class AIClient {
         throw lastError ?? NSError(domain: "AIClient", code: -1, userInfo: [NSLocalizedDescriptionKey: "Request failed after retries"])
     }
     
-    private func performRequest(requestBody: AIRequest) async throws -> String {
+    private func performRequest(requestBody: AIRequest) async throws -> AIFeedback {
         guard let url = URL(string: config.endpoint) else {
             throw NSError(domain: "AIClient", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid endpoint URL"])
         }
@@ -159,7 +159,7 @@ class AIClient {
             throw NSError(domain: "AIClient", code: -1, userInfo: [NSLocalizedDescriptionKey: error])
         }
         
-        return aiResponse.message
+        return aiResponse.toFeedback()
     }
     
     // MARK: - Stream Support (Optional)
@@ -175,7 +175,7 @@ class AIClient {
                     // TODO: 实现 SSE 流式解析
                     // 这里先返回非流式结果
                     let reply = try await getAIReply(summary: summary, includeImage: includeImage, imageBase64: imageBase64)
-                    continuation.yield(reply)
+                    continuation.yield(reply.composedForShare)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)

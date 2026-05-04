@@ -15,6 +15,12 @@ import UIKit
 class FaceMeshAssistantViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var bubbleText: String = ""
+    /// 与后端 `summary` 对应；主气泡收起时展示
+    @Published var bubbleSummary: String = ""
+    /// 与后端 `detail` 对应；主气泡展开时打字机区域展示
+    @Published var bubbleDetail: String = ""
+    /// 与后端 `fun_fact` 对应；FunFact 气泡展示
+    @Published var bubbleFunFact: String = ""
     @Published var isBubbleVisible: Bool = false
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -200,12 +206,12 @@ class FaceMeshAssistantViewModel: ObservableObject {
             } else {
                 lastSharedImage = nil
             }
-            let aiReply = try await aiClient.getAIReply(
+            let feedback = try await aiClient.getAIReply(
                 summary: summary,
                 includeImage: uploadFullImage,
                 imageBase64: imageBase64
             )
-            updateBubble(text: aiReply, autoHide: true, isAIResponse: true)
+            updateBubble(feedback: feedback, autoHide: true)
             hasCompletedFirstAnalysis = true
             isLoading = false
             canRequestReanalysis = true
@@ -219,26 +225,50 @@ class FaceMeshAssistantViewModel: ObservableObject {
         }
     }
     
+    /// 分享/导出用的完整文案（summary + detail + fun fact）
+    func composedShareText() -> String {
+        let joined = [bubbleSummary, bubbleDetail, bubbleFunFact]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+        if !joined.isEmpty { return joined }
+        return bubbleText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // MARK: - Bubble Management
+    private func updateBubble(feedback: AIFeedback, autoHide: Bool = true) {
+        bubbleSummary = feedback.summary
+        bubbleDetail = feedback.detail
+        bubbleFunFact = feedback.funFact
+        bubbleText = feedback.summary
+        isBubbleVisible = true
+        shouldExpandBubble = true
+        finishBubbleUpdate(autoHide: autoHide)
+    }
+
     private func updateBubble(text: String, autoHide: Bool = true, isAIResponse: Bool = false) {
+        bubbleSummary = text
+        bubbleDetail = ""
+        bubbleFunFact = ""
         bubbleText = text
         isBubbleVisible = true
-        
+
         // 只有AI响应才展开气泡
         shouldExpandBubble = isAIResponse
         
-        // 取消之前的自动隐藏任务
+        finishBubbleUpdate(autoHide: autoHide)
+    }
+
+    private func finishBubbleUpdate(autoHide: Bool) {
         bubbleAutoHideTask?.cancel()
-        
+
         if autoHide {
-            // 3-5 秒后自动隐藏；Task 取消时 sleep 抛出 CancellationError，自动退出
             let hideDelay = Double.random(in: 3.0...5.0)
             bubbleAutoHideTask = Task { [weak self] in
                 do {
                     try await Task.sleep(nanoseconds: UInt64(hideDelay * 1_000_000_000))
-                    self?.isBubbleVisible = false  // 已在 @MainActor 上，无需 MainActor.run
+                    self?.isBubbleVisible = false
                 } catch {
-                    // Task was cancelled — do nothing
                 }
             }
         }
@@ -283,6 +313,9 @@ class FaceMeshAssistantViewModel: ObservableObject {
         consecutiveFaceFrames = 0
         consecutiveNoFaceFrames = 0
         bubbleText = ""
+        bubbleSummary = ""
+        bubbleDetail = ""
+        bubbleFunFact = ""
         isBubbleVisible = false
         shouldExpandBubble = false  // 重置展开信号
         lastSharedImage = nil
@@ -311,7 +344,10 @@ class FaceMeshAssistantViewModel: ObservableObject {
     func resetToWelcome() {
         bubbleAutoHideTask?.cancel()
         shouldExpandBubble = false          // 气泡收起
-        bubbleText = ""                     // 清空 AI 内容
+        bubbleText = ""
+        bubbleSummary = ""
+        bubbleDetail = ""
+        bubbleFunFact = ""
         isBubbleVisible = true             // 保持可见，显示问候
         // Do NOT re-enable automatic analysis here.
         // Auto analysis should only happen once per app launch.
