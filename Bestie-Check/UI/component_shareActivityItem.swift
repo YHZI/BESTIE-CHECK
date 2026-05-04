@@ -256,7 +256,7 @@ private nonisolated func _renderShareImage(
         let textPadV:  CGFloat = bubbleH * 0.12
         let textRect   = bubbleRect.insetBy(dx: textPadH, dy: textPadV)
 
-        let bubbleFont = UIFont.systemFont(ofSize: bubbleH * 0.13, weight: .regular)
+        let bubbleFont = UIFont.systemFont(ofSize: bubbleH * 0.10, weight: .regular)
         let paraStyle  = NSMutableParagraphStyle()
         paraStyle.lineSpacing    = bubbleH * 0.02
         paraStyle.alignment      = .left
@@ -336,13 +336,22 @@ struct ShareFlowModifier: ViewModifier {
                         // 用 ShareImageActivityItemSource 包装图片，保证兼容性
                         if let item = ShareImageActivityItemSource(image: img) {
                             let vc = UIActivityViewController(activityItems: [item], applicationActivities: nil)
-                            vc.completionWithItemsHandler = { _, _, _, _ in
-                                DispatchQueue.main.async {
+                            vc.completionWithItemsHandler = { _, completed, _, _ in
+                                // 先清理资源
+                                item.cleanup()
+                                
+                                // 使用异步延迟确保UI完全关闭后再更新状态，避免主线程卡死
+                                Task { @MainActor in
+                                    // 先重置 ViewModel 状态（轻量级操作）
+                                    viewModel.resetToWelcome()
+                                    
+                                    // 短暂延迟后关闭分享流程（让 UIActivityViewController 完全 dismiss）
+                                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
+                                    
+                                    // 关闭分享流程会自动触发 ContentView 的 onChange 来恢复 AR session
                                     isPresented = false
                                     isBubbleExpanded = false
-                                    viewModel.resetToWelcome()
                                 }
-                                item.cleanup()
                             }
                             if let popover = vc.popoverPresentationController {
                                 popover.sourceView = top.view

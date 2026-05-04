@@ -21,8 +21,14 @@ class FaceMeshAssistantViewModel: ObservableObject {
     @Published var shouldExpandBubble: Bool = false  // 控制气泡是否应该展开（仅AI响应时为true）
     
     // MARK: - Share
-    /// 用户可分享的妆容照片（使用“发给 AI 的那张”）
+    /// 用户可分享的妆容照片（使用"发给 AI 的那张"）
     @Published var lastSharedImage: UIImage?
+    
+    // MARK: - FunFact & Logo State
+    /// FunFact 气泡显示状态
+    @Published var showFunFact: Bool = false
+    /// Logo 呼吸灯效果状态（FunFact 关闭后亮起）
+    @Published var logoGlowing: Bool = false
     
     // MARK: - Debug Settings
     @Published var throttleIntervalMs: Int = 200  // 默认 5fps (1000/200)
@@ -76,6 +82,7 @@ class FaceMeshAssistantViewModel: ObservableObject {
     
     /// Share 流程打开时调用：暂停 ARSession 释放摄像头，避免与 AVCaptureSession 竞争
     func pauseARSession() {
+        print("🔴 ViewModel: Pausing AR session")
         arFrameProvider.pauseSession()
         frameTask?.cancel()
         frameTask = nil
@@ -83,6 +90,12 @@ class FaceMeshAssistantViewModel: ObservableObject {
     
     /// Share 流程关闭时调用：恢复 ARSession
     func resumeARSession() {
+        // 防止重复恢复：如果已经有 frameTask 在运行，说明已经恢复过了
+        guard frameTask == nil else {
+            print("⚠️ ViewModel: AR session already resumed, skipping")
+            return
+        }
+        print("🟢 ViewModel: Resuming AR session")
         arFrameProvider.resumeSession()
         startFrameProcessing()
     }
@@ -309,6 +322,11 @@ class FaceMeshAssistantViewModel: ObservableObject {
         lastSharedImage = nil
         errorMessage = nil
         isLoading = false
+        
+        // 重置 FunFact 和 Logo 状态
+        showFunFact = false
+        logoGlowing = false
+        
         // bubbleText 置空后 ContentView 的 displayText 会自动回退到 "Hello! 😊"
     }
 
