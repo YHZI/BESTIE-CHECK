@@ -74,6 +74,14 @@ class FaceMeshAssistantViewModel: ObservableObject {
     init() {
         // 不在 init 中启动 frameProcessing，等待 setupARSession 调用
         print("🎬 ViewModel initialized, waiting for AR Session setup")
+        
+        // 触发资源预加载（非阻塞，在后台并行执行）
+        Task {
+            await ResourcePreloader.shared.isReady
+            print("✅ Resources preloaded, ready to start frame processing")
+            // 预加载模型
+            await faceLandmarkerService.prepareModel()
+        }
     }
     
     // MARK: - AR Session Management
