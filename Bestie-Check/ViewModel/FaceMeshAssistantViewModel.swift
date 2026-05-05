@@ -349,9 +349,20 @@ class FaceMeshAssistantViewModel: ObservableObject {
         canRequestReanalysis = false
         // Reset per-face-session gating so the next stable face can trigger.
         hasRepliedForCurrentFaceSession = false
-        stableFaceAnchorWallMs = nil
-        consecutiveFaceFrames = 0
-        consecutiveNoFaceFrames = 0
+        
+        // If a face is already on-screen (e.g. user never moved away, or returning from Share),
+        // don't force the user to leave/re-enter the scan area to re-trigger. Pre-warm the
+        // "stable face" gates so the next frame can fire immediately.
+        if FaceDetectionProvider.shared.faceDetected {
+            let nowWallMs = Int64(Date().timeIntervalSince1970 * 1000)
+            stableFaceAnchorWallMs = nowWallMs - aiRequestDelayAfterStableFaceMs
+            consecutiveFaceFrames = requiredFaceFrames
+            consecutiveNoFaceFrames = 0
+        } else {
+            stableFaceAnchorWallMs = nil
+            consecutiveFaceFrames = 0
+            consecutiveNoFaceFrames = 0
+        }
         // 解锁 FunFact，允许新的分析更新 FunFact
         funFactLocked = false
     }
