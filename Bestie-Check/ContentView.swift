@@ -338,6 +338,11 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             // 首次自动扫描完成后显示，用于手动触发下一次分析（与 ViewModel.requestReanalysis 配对）
             if viewModel.hasCompletedFirstAnalysis {
                 Button {
+                    // 用户点 Rescan：立刻收起 bubble（避免保持展开），并清掉自动展开信号
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        isBubbleExpanded = false
+                        viewModel.shouldExpandBubble = false
+                    }
                     viewModel.requestReanalysis()
                 } label: {
                     HStack(spacing: 8) {

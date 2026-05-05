@@ -380,6 +380,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
             lastSharedImage = nil
             errorMessage = nil
             isLoading = false
+            // Share 流程结束后允许用户手动 Rescan（避免 canRequestReanalysis 被卡在 false）
+            canRequestReanalysis = true
             
             // 重置 FunFact 和 Logo 状态 - 不自动显示呼吸灯
             showFunFact = false
