@@ -315,10 +315,8 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             // ── FunFact floating bubble (draggable overlay) ──────────────
             if viewModel.showFunFact {
                 FunFactBubble(
-                    text: "Fun Fact ✨",                          // ← 硬编码主标题
+                    text: "Fun Fact ✨",
                     feedbackText: viewModel.funFactText.isEmpty ? nil : viewModel.funFactText,
-                    //            ↑ 使用 funFactText（锁定机制，不会持续刷新）
-                    url: URL(string: "https://www.google.com"), // TODO: replace with real URL
                     onDismiss: {
                         viewModel.showFunFact = false
                         // FunFact 关闭后显示呼吸灯，让用户知道可以再次点击
@@ -332,35 +330,6 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 .ignoresSafeArea()
                 .allowsHitTesting(true)
                 .zIndex(10)
-            }
-        }
-        .overlay(alignment: .bottom) {
-            // 首次自动扫描完成后显示，用于手动触发下一次分析（与 ViewModel.requestReanalysis 配对）
-            if viewModel.hasCompletedFirstAnalysis {
-                Button {
-                    // 用户点 Rescan：立刻收起 bubble（避免保持展开），并清掉自动展开信号
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        isBubbleExpanded = false
-                        viewModel.shouldExpandBubble = false
-                    }
-                    viewModel.requestReanalysis()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Rescan")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(
-                        Capsule()
-                            .fill(Color.black.opacity((viewModel.canRequestReanalysis && !viewModel.isLoading) ? 0.55 : 0.35))
-                    )
-                }
-                .disabled(!viewModel.canRequestReanalysis || viewModel.isLoading)
-                .padding(.bottom, 130)
-                .accessibilityLabel("Rescan face analysis")
             }
         }
         .onAppear {
