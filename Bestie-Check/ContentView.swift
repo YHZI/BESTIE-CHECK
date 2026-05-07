@@ -337,6 +337,35 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 .zIndex(10)
             }
         }
+        .overlay(alignment: .bottom) {
+            // 首次自动扫描完成后显示，用于手动触发下一次分析（与 ViewModel.requestReanalysis 配对）
+            if viewModel.hasCompletedFirstAnalysis {
+                Button {
+                    // 用户点 Rescan：立刻收起 bubble（避免保持展开），并清掉自动展开信号
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        isBubbleExpanded = false
+                        viewModel.shouldExpandBubble = false
+                    }
+                    viewModel.requestReanalysis()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Rescan")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity((viewModel.canRequestReanalysis && !viewModel.isLoading) ? 0.55 : 0.35))
+                    )
+                }
+                .disabled(!viewModel.canRequestReanalysis || viewModel.isLoading)
+                .padding(.bottom, 130)
+                .accessibilityLabel("Rescan face analysis")
+            }
+        }
         .onAppear {
             // ViewModel 初始化时已启动处理
             onAppReady?()
