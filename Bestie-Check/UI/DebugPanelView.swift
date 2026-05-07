@@ -25,6 +25,9 @@ struct DebugPanelView: View {
     @State private var previewImageForUI: UIImage?
     @State private var showLaunchScreen = false
     
+    // FunFact 注入文本
+    @State private var funFactTestText: String = ""
+    
     private func updateExpansionCheck(_ text: String) {
         byteCount = text.utf8.count
         shouldExpand = byteCount > 180
@@ -315,20 +318,113 @@ struct DebugPanelView: View {
                     Divider()
                         .background(Color.white.opacity(0.3))
 
-                    // FunFact Bubble 预览按钮
-                    Button(action: {
-                        showFunFact.toggle()
-                    }) {
-                        HStack {
-                            Image(systemName: "bubble.left.fill")
-                            Text(showFunFact ? "Hide FunFact Bubble" : "Show FunFact Bubble")
+                    // FunFact Bubble 控制区域
+                    VStack(alignment: .leading, spacing: 8) {
+                        // 显示/隐藏按钮
+                        Button(action: {
+                            showFunFact.toggle()
+                        }) {
+                            HStack {
+                                Image(systemName: "bubble.left.fill")
+                                Text(showFunFact ? "Hide FunFact Bubble" : "Show FunFact Bubble")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background(showFunFact ? Color.teal.opacity(0.9) : Color.teal.opacity(0.7))
+                            .cornerRadius(6)
                         }
-                        .font(.caption)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
+                        
+                        // 文本注入区域
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Inject FunFact Text:")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.8))
+                            
+                            TextField("Enter test text...", text: $funFactTestText, axis: .vertical)
+                                .textFieldStyle(.plain)
+                                .font(.caption)
+                                .foregroundColor(.white)
+                                .padding(8)
+                                .background(Color.black.opacity(0.5))
+                                .cornerRadius(6)
+                                .lineLimit(3...6)
+                            
+                            HStack(spacing: 8) {
+                                // 注入按钮
+                                Button(action: {
+                                    viewModel.funFactText = funFactTestText
+                                    if !showFunFact {
+                                        showFunFact = true
+                                    }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "syringe.fill")
+                                        Text("Inject")
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(6)
+                                    .background(Color.purple.opacity(0.8))
+                                    .cornerRadius(6)
+                                }
+                                
+                                // 清空按钮
+                                Button(action: {
+                                    funFactTestText = ""
+                                    viewModel.funFactText = ""
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "trash.fill")
+                                        Text("Clear")
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(6)
+                                    .background(Color.red.opacity(0.7))
+                                    .cornerRadius(6)
+                                }
+                            }
+                            
+                            // 快速填充预设文本
+                            HStack(spacing: 6) {
+                                Button("Short") {
+                                    funFactTestText = "This is a short test message."
+                                }
+                                .font(.caption2)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.6))
+                                .cornerRadius(4)
+                                
+                                Button("Medium") {
+                                    funFactTestText = "Your eyebrow raise is 78% — you look naturally expressive today! Keep it up! ✨"
+                                }
+                                .font(.caption2)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.6))
+                                .cornerRadius(4)
+                                
+                                Button("Long") {
+                                    funFactTestText = "Your eyebrow raise is 78% — you look naturally expressive today! This is a longer text to test the expand/collapse feature. It should trigger the expand button when displayed. Keep practicing your expressions! ✨🎉"
+                                }
+                                .font(.caption2)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.6))
+                                .cornerRadius(4)
+                            }
+                        }
                         .padding(8)
-                        .background(showFunFact ? Color.teal.opacity(0.9) : Color.teal.opacity(0.7))
-                        .cornerRadius(6)
+                        .background(Color.black.opacity(0.4))
+                        .cornerRadius(8)
                     }
                 }
             }

@@ -367,6 +367,14 @@ class FaceMeshAssistantViewModel: ObservableObject {
         funFactLocked = false
     }
     
+    /// Allow external callers to re-enable reanalysis capability.
+    /// Called when user manually collapses the bubble or after certain UI flows.
+    func enableReanalysis() {
+        guard hasCompletedFirstAnalysis, !isLoading else { return }
+        canRequestReanalysis = true
+        print("🔓 Reanalysis capability re-enabled")
+    }
+    
     // MARK: - Post-Share Reset
     /// 分享完成后，重置 UI 到欢迎状态：收起气泡、清空AI内容、重填默认问候
     func resetToWelcome() {
