@@ -37,6 +37,10 @@ struct ContentView: View {
     /// 标记当前分析会话是否已显示过 FunFact（避免反复触发）
     @State private var funFactShownInCurrentSession: Bool = false
 
+    /// Rescan 按钮可见性。仅在"回到欢迎页"时显示；点击后立即隐藏，
+    /// 直到下一次 `resetToWelcome` 才会再次出现。
+    @State private var showRescanButton: Bool = false
+
     var onAppReady: (() -> Void)? = nil
 
     
@@ -338,14 +342,21 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             }
         }
         .overlay(alignment: .bottom) {
-            // 首次自动扫描完成后显示，用于手动触发下一次分析（与 ViewModel.requestReanalysis 配对）
-            if viewModel.hasCompletedFirstAnalysis {
+            // Rescan 按钮：仅在"欢迎页"显示。点击后立即隐藏（带动画），
+            // 直到下一次 `resetToWelcome` 触发才会再次出现。
+            if showRescanButton && viewModel.hasCompletedFirstAnalysis {
                 Button {
-                    // 用户点 Rescan：立刻收起 bubble（避免保持展开），并清掉自动展开信号
+                    print("🖱️ Rescan button tapped (canRequestReanalysis=\(viewModel.canRequestReanalysis), isLoading=\(viewModel.isLoading))")
+                    // 1. 立刻隐藏自身（含淡出/缩放动画）
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        showRescanButton = false
+                    }
+                    // 2. 收起 bubble、清掉自动展开信号
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         isBubbleExpanded = false
                         viewModel.shouldExpandBubble = false
                     }
+                    // 3. 触发新一轮分析
                     viewModel.requestReanalysis()
                 } label: {
                     HStack(spacing: 8) {
@@ -364,6 +375,13 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 .disabled(!viewModel.canRequestReanalysis || viewModel.isLoading)
                 .padding(.bottom, 130)
                 .accessibilityLabel("Rescan face analysis")
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+        }
+        .onChange(of: viewModel.welcomeRevision) { _, _ in
+            // ViewModel 完成 resetToWelcome → 现在处于欢迎页，重新显示 Rescan
+            withAnimation(.easeIn(duration: 0.25)) {
+                showRescanButton = true
             }
         }
         .onAppear {

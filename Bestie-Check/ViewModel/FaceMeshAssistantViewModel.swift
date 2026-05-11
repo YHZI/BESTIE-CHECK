@@ -48,6 +48,10 @@ class FaceMeshAssistantViewModel: ObservableObject {
     /// Whether the app has completed at least one analysis attempt this launch.
     /// Used by UI to decide when to show the "Re-scan" entry point.
     @Published private(set) var hasCompletedFirstAnalysis: Bool = false
+    /// Monotonically incremented every time `resetToWelcome()` runs.
+    /// UI can observe changes to this value as the authoritative
+    /// "we are now back on the welcome screen" event.
+    @Published private(set) var welcomeRevision: Int = 0
     private var hasAutoAnalyzedThisLaunch: Bool = false
     private var isManualReanalysisArmed: Bool = false
     
@@ -199,7 +203,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
         if hasAutoAnalyzedThisLaunch && !isManualReanalysisArmed {
             return
         }
-        
+
+        print("🚀 processFrame: firing AI request (manualArmed=\(isManualReanalysisArmed), hasAutoAnalyzed=\(hasAutoAnalyzedThisLaunch))")
         // 3. 稳定有脸满 1 秒后，用当前帧调用 AI 一次
         hasRepliedForCurrentFaceSession = true
         let wasManualReanalysis = isManualReanalysisArmed
@@ -317,54 +322,32 @@ class FaceMeshAssistantViewModel: ObservableObject {
     }
 
     /// 重置后台检测状态
-    func resetDetection() {
-        print("🔄 ViewModel: Resetting detection state...")
-        
-        lastProcessedTimestamp = 0
-        hasRepliedForCurrentFaceSession = false
-        stableFaceAnchorWallMs = nil
-        consecutiveFaceFrames = 0
-        consecutiveNoFaceFrames = 0
-        bubbleText = ""
-        bubbleTextForShare = ""
-        bubbleSummary = ""
-        bubbleDetail = ""
-        funFactText = ""
-        funFactLocked = false  // 解锁 FunFact，允许下次更新
-        isBubbleVisible = false
-        shouldExpandBubble = false  // 重置展开信号
-        lastSharedImage = nil
-        bubbleAutoHideTask?.cancel()
-        errorMessage = nil
-        isLoading = false
-        
-        print("✅ ViewModel: Detection state reset completed")
-    }
+    // NOTE: `resetDetection()` was removed (deprecated draft). Use `resetToWelcome()` instead.
 
     /// User-facing reanalysis trigger.
     /// Arms exactly one new analysis run (when a face is stable again).
     func requestReanalysis() {
-        guard !isLoading else { return }
+        print("🔁 requestReanalysis() invoked. isLoading=\(isLoading), faceDetected=\(FaceDetectionProvider.shared.faceDetected), hasAutoAnalyzed=\(hasAutoAnalyzedThisLaunch), hasReplied=\(hasRepliedForCurrentFaceSession)")
+        guard !isLoading else {
+            print("⛔️ requestReanalysis: aborted because isLoading=true")
+            return
+        }
         isManualReanalysisArmed = true
         canRequestReanalysis = false
         // Reset per-face-session gating so the next stable face can trigger.
         hasRepliedForCurrentFaceSession = false
-        
-        // If a face is already on-screen (e.g. user never moved away, or returning from Share),
-        // don't force the user to leave/re-enter the scan area to re-trigger. Pre-warm the
-        // "stable face" gates so the next frame can fire immediately.
-        if FaceDetectionProvider.shared.faceDetected {
-            let nowWallMs = Int64(Date().timeIntervalSince1970 * 1000)
-            stableFaceAnchorWallMs = nowWallMs - aiRequestDelayAfterStableFaceMs
-            consecutiveFaceFrames = requiredFaceFrames
-            consecutiveNoFaceFrames = 0
-        } else {
-            stableFaceAnchorWallMs = nil
-            consecutiveFaceFrames = 0
-            consecutiveNoFaceFrames = 0
-        }
+
+        // Pre-warm gates so the next frame can fire AI immediately, regardless
+        // of whether the FaceDetectionProvider has flipped to true yet (it lags
+        // the actual landmarker result by up to `requiredFaceFrames` frames).
+        let nowWallMs = Int64(Date().timeIntervalSince1970 * 1000)
+        stableFaceAnchorWallMs = nowWallMs - aiRequestDelayAfterStableFaceMs
+        consecutiveFaceFrames = requiredFaceFrames
+        consecutiveNoFaceFrames = 0
+
         // 解锁 FunFact，允许新的分析更新 FunFact
         funFactLocked = false
+        print("✅ requestReanalysis: armed. isManualReanalysisArmed=true, pre-warmed face gates")
     }
     
     /// Allow external callers to re-enable reanalysis capability.
@@ -406,7 +389,10 @@ class FaceMeshAssistantViewModel: ObservableObject {
             showFunFact = false
             logoGlowing = false  // 保持关闭，用户需要手动触发
             // 注意：不解锁 funFactLocked，保持 funFactText 内容直到下次扫描
-            
+
+            // Bump revision LAST so observers see a fully reset state.
+            welcomeRevision &+= 1
+
             print("✅ resetToWelcome completed")
         }
     }

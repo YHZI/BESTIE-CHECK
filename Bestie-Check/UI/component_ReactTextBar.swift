@@ -462,9 +462,7 @@ struct BubbleWithLCutout: Shape {
         
         // 使用 rect 的实际高度（由外部 VStack 的 frame 控制）
         let actualBottom = rect.maxY
-        
-        print("🎨 Drawing bubble - rect height: \(rect.height)pt, bottom: \(actualBottom)pt")
-        
+
         return Path { path in
             // 1. 起点：左上角
             path.move(to: CGPoint(x: rect.minX, y: rect.minY + cornerRadius))
