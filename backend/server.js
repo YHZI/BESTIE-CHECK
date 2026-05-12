@@ -98,7 +98,6 @@ app.post('/api/face-analysis', async (req, res) => {
             }
           ],
           generation_config: {
-            max_output_tokens: 1200,
             temperature: 0.7
           }
         })
