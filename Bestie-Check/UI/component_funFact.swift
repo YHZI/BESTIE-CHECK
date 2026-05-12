@@ -6,16 +6,14 @@
 //
 
 import SwiftUI
-import SafariServices
 
 // MARK: - FunFactBubble
 
-/// 布局：[气泡 + 蓝色链接按钮 →尾巴][LaunchIcon + 关闭按钮]
+/// 布局：[气泡 →尾巴][LaunchIcon + 关闭按钮]
 /// 功能：记忆上次关闭位置，下次在原位置打开
 struct FunFactBubble: View {
     let text: String
     var feedbackText: String? = nil
-    var url: URL?             = URL(string: "https://www.google.com")
     var onDismiss: (() -> Void)? = nil
 
     @State private var isCollapsed:   Bool    = false
@@ -25,6 +23,7 @@ struct FunFactBubble: View {
     @State private var position:      CGSize  = .zero
     @GestureState private var dragDelta: CGSize = .zero
     @State private var hasLoadedSavedPosition: Bool = false
+    @State private var isExpanded:    Bool    = false  // 气泡展开状态（显示完整文本）
 
     // 持久化位置存储
     @AppStorage("funFactBubbleX") private var savedX: Double = 0
@@ -32,7 +31,6 @@ struct FunFactBubble: View {
     @AppStorage("funFactHasSavedPosition") private var hasSavedPosition: Bool = false
 
     private let iconSize: CGFloat = 44
-    private let linkBtnSize: CGFloat = 28
 
     var body: some View {
         GeometryReader { geo in
@@ -76,84 +74,62 @@ struct FunFactBubble: View {
         }
     }
 
-    // MARK: - Bubble with blue link button
+    // MARK: - Bubble content
 
     private var bubbleContent: some View {
-        ZStack(alignment: .topTrailing) {
-            // 气泡主体
-            VStack(alignment: .leading, spacing: 0) {
-                Text(text)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(text)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, feedbackText == nil ? 10 : 4)
+                .frame(maxWidth: 200, alignment: .leading)
+
+            if let fb = feedbackText, !fb.isEmpty {
+                Text(fb)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(isExpanded ? nil : 2)  // 展开时不限制行数，否则最多2行
                     .padding(.horizontal, 14)
-                    .padding(.top, 10)
-                    .padding(.bottom, feedbackText == nil ? 10 : 4)
-                    .frame(maxWidth: 200, alignment: .leading)
-
-                if let fb = feedbackText, !fb.isEmpty {
-                    Text(fb)
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .lineLimit(3)
-                        .padding(.horizontal, 14)
-                        .padding(.bottom, 10)
-                        .frame(maxWidth: 200, alignment: .leading)
+                    .padding(.bottom, 10)
+                    .frame(maxWidth: isExpanded ? 280 : 200, alignment: .leading)
+                
+                // 展开/收起提示（只在有文本且可展开时显示）
+                if fb.count > 50 {  // 大约2行文本的字符数
+                    HStack(spacing: 4) {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10))
+                        Text(isExpanded ? "Tap to collapse" : "Tap to expand")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(.blue.opacity(0.8))
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 8)
                 }
-            }
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.45), lineWidth: 1)
-                }
-            )
-            .overlay(alignment: .trailing) {
-                RightTail()
-                    .fill(.ultraThinMaterial)
-                    .frame(width: 10, height: 8)
-                    .offset(x: 9, y: 0)
-            }
-            .shadow(color: .black.opacity(0.14), radius: 8, x: 0, y: 4)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                openSafari()
-            }
-
-            // 蓝色链接按钮（右上角overlay）
-            if url != nil {
-                blueLinkButton
-                    .offset(x: 8, y: -8)
             }
         }
-    }
-
-    // MARK: - Blue circular link button
-
-    private var blueLinkButton: some View {
-        ZStack {
-            // 蓝色呼吸光晕
-            LinkBreathingGlow(diameter: linkBtnSize)
-
-            // 圆形按钮
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color(red: 0.25, green: 0.55, blue: 1.0),
-                                 Color(red: 0.12, green: 0.38, blue: 0.95)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: linkBtnSize, height: linkBtnSize)
-                .shadow(color: Color.blue.opacity(0.4), radius: 4, x: 0, y: 2)
-                .overlay {
-                    Image(systemName: "safari.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.45), lineWidth: 1)
+            }
+        )
+        .overlay(alignment: .trailing) {
+            RightTail()
+                .fill(.ultraThinMaterial)
+                .frame(width: 10, height: 8)
+                .offset(x: 9, y: 0)
         }
+        .shadow(color: .black.opacity(0.14), radius: 8, x: 0, y: 4)
+        .contentShape(Rectangle())
         .onTapGesture {
-            openSafari()
+            // 点击气泡切换展开/收起状态
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                isExpanded.toggle()
+            }
         }
     }
 
@@ -197,9 +173,9 @@ struct FunFactBubble: View {
             // 恢复上次保存的位置（相对于屏幕中心的偏移）
             position = CGSize(width: savedX, height: savedY)
         } else {
-            // 默认位置：屏幕底部居中（相对于中心向下偏移）
-            // 屏幕中心是 (0, 0)，向下是正值，向上是负值
-            position = CGSize(width: 0, height: screenSize.height / 2 - 150)
+            // 默认位置：章鱼在屏幕右侧1/4处（这样整个构件会在屏幕中间）
+            // 屏幕中心是 (0, 0)，向右1/4是 +screenSize.width / 4
+            position = CGSize(width: screenSize.width / 4, height: screenSize.height / 2 - 90)
         }
     }
 
@@ -207,23 +183,6 @@ struct FunFactBubble: View {
         savedX = position.width
         savedY = position.height
         hasSavedPosition = true
-    }
-
-    // MARK: - Open Safari browser
-
-    private func openSafari() {
-        guard let link = url else { return }
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root  = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
-        else { return }
-
-        let vc = SFSafariViewController(url: link)
-        vc.preferredControlTintColor = .systemBlue
-
-        // 找到最顶层的 presented vc
-        var top = root
-        while let presented = top.presentedViewController { top = presented }
-        top.present(vc, animated: true)
     }
 
     // MARK: - Animations
@@ -253,29 +212,6 @@ struct FunFactBubble: View {
             isCollapsed = true
             // 不显示内部呼吸灯，因为外部 LogoFrame 已经有了
         }
-    }
-}
-
-// MARK: - Blue breathing glow (tight around circle button)
-
-private struct LinkBreathingGlow: View {
-    let diameter: CGFloat
-    @State private var pulse = false
-
-    var body: some View {
-        ZStack {
-            ForEach(0..<3, id: \.self) { i in
-                let expand = CGFloat(i + 1) * 3   // 3/6/9 pt — stays close to circle
-                Circle()
-                    .fill(Color.blue.opacity(pulse ? 0.0 : Double(3 - i) * 0.28))
-                    .frame(width: diameter + expand, height: diameter + expand)
-                    .blur(radius: CGFloat(1 + i))  // 1/2/3 pt — subtle
-                    .scaleEffect(pulse ? 1.12 : 1.0)
-                    .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)
-                        .delay(Double(i) * 0.28), value: pulse)
-            }
-        }
-        .onAppear { pulse = true }
     }
 }
 
@@ -333,7 +269,6 @@ struct FunFactBreathingGlow: View {
         FunFactBubble(
             text: "Fun fact ✨",
             feedbackText: "Your eyebrow raise is 78% — you look expressive today!",
-            url: URL(string: "https://www.google.com"),
             onDismiss: {}
         )
     }

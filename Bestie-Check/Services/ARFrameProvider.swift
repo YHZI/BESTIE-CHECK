@@ -29,7 +29,12 @@ class ARFrameProvider: NSObject, ObservableObject {
     
     private func setupFrameStream() {
         var continuation: AsyncStream<TimestampedFrameBox>.Continuation?
-        frameStream = AsyncStream<TimestampedFrameBox> { cont in
+        // bufferingPolicy: .bufferingNewest(1)
+        // ARKit delegate 以 ~60fps yield 帧，下游 processFrame 因节流只消费 5fps。
+        // 默认的 .unbounded 缓冲会让 CVPixelBuffer 持续堆积，导致
+        // "ARSession is retaining N ARFrames" 警告并最终冻结相机。
+        // 仅保留最新 1 帧：旧帧自动丢弃，CVPixelBuffer 立即释放回 ARKit 池。
+        frameStream = AsyncStream<TimestampedFrameBox>(bufferingPolicy: .bufferingNewest(1)) { cont in
             continuation = cont
         }
         frameContinuation = continuation

@@ -37,6 +37,10 @@ struct ContentView: View {
     /// 标记当前分析会话是否已显示过 FunFact（避免反复触发）
     @State private var funFactShownInCurrentSession: Bool = false
 
+    /// Rescan 按钮可见性。仅在"回到欢迎页"时显示；点击后立即隐藏，
+    /// 直到下一次 `resetToWelcome` 才会再次出现。
+    @State private var showRescanButton: Bool = false
+
     var onAppReady: (() -> Void)? = nil
 
     
@@ -162,9 +166,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     }
                 }
             }
-            .onChange(of: isBubbleExpanded) { _, expanded in
+            .onChange(of: isBubbleExpanded) { oldExpanded, newExpanded in
                 // ReactTextBar 展开状态变化时的处理
-                if expanded {
+                if newExpanded {
                     // 气泡展开 → 启动 2 秒定时器，自动弹出 FunFact（但只在未手动显示过的情况下）
                     guard !funFactShownInCurrentSession else {
                         print("⏭️ FunFact already shown in this session, skipping auto-trigger")
@@ -182,11 +186,12 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     }
                     funFactTimer = task
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: task)
-                } else {
-                    // 气泡收起 → 取消定时器
-                    print("📦 ReactTextBar collapsed - canceling timer")
+                } else if oldExpanded {
+                    // 气泡从展开变为收起 → 取消定时器
+                    print("📦 ReactTextBar collapsed - canceling FunFact timer")
                     funFactTimer?.cancel()
                     funFactTimer = nil
+                    // 注意：resetToWelcome 逻辑已移到 BackButton 的 onResetDetection 中处理
                 }
             }
             .onChange(of: viewModel.showFunFact) { _, showing in
@@ -233,10 +238,14 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                             }
                         ),
                         onResetDetection: {
-                            // 重置 APP 后台检测方法
-                            print("🔄 Resetting backend detection...")
-                            viewModel.resetDetection()
-                            // 重置 FunFact 会话标记，允许下次触发
+                            // 🔑 BackButton 内部已确保仅在气泡展开时才调用此回调
+                            // （见 BackButton.handleButtonTap 中的 `if expanded` 分支）
+                            // 注意：此时 isBubbleExpanded 已经被 BackButton 设为 false，
+                            //       所以不能用 isBubbleExpanded 做条件判断！
+                            // 直接调用 resetToWelcome，与 Share 流程保持一致
+                            print("🔄 BackButton: Calling resetToWelcome (same flow as Share completion)")
+                            viewModel.resetToWelcome()
+                            // 同时重置 FunFact 会话标记
                             funFactShownInCurrentSession = false
                             funFactTimer?.cancel()
                             funFactTimer = nil
@@ -315,10 +324,8 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             // ── FunFact floating bubble (draggable overlay) ──────────────
             if viewModel.showFunFact {
                 FunFactBubble(
-                    text: "Fun Fact ✨",                          // ← 硬编码主标题
+                    text: "Fun Fact ✨",
                     feedbackText: viewModel.funFactText.isEmpty ? nil : viewModel.funFactText,
-                    //            ↑ 使用 funFactText（锁定机制，不会持续刷新）
-                    url: URL(string: "https://www.google.com"), // TODO: replace with real URL
                     onDismiss: {
                         viewModel.showFunFact = false
                         // FunFact 关闭后显示呼吸灯，让用户知道可以再次点击
@@ -335,14 +342,21 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             }
         }
         .overlay(alignment: .bottom) {
-            // 首次自动扫描完成后显示，用于手动触发下一次分析（与 ViewModel.requestReanalysis 配对）
-            if viewModel.hasCompletedFirstAnalysis {
+            // Rescan 按钮：仅在"欢迎页"显示。点击后立即隐藏（带动画），
+            // 直到下一次 `resetToWelcome` 触发才会再次出现。
+            if showRescanButton && viewModel.hasCompletedFirstAnalysis {
                 Button {
-                    // 用户点 Rescan：立刻收起 bubble（避免保持展开），并清掉自动展开信号
+                    print("🖱️ Rescan button tapped (canRequestReanalysis=\(viewModel.canRequestReanalysis), isLoading=\(viewModel.isLoading))")
+                    // 1. 立刻隐藏自身（含淡出/缩放动画）
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        showRescanButton = false
+                    }
+                    // 2. 收起 bubble、清掉自动展开信号
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         isBubbleExpanded = false
                         viewModel.shouldExpandBubble = false
                     }
+                    // 3. 触发新一轮分析
                     viewModel.requestReanalysis()
                 } label: {
                     HStack(spacing: 8) {
@@ -361,6 +375,13 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 .disabled(!viewModel.canRequestReanalysis || viewModel.isLoading)
                 .padding(.bottom, 130)
                 .accessibilityLabel("Rescan face analysis")
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+        }
+        .onChange(of: viewModel.welcomeRevision) { _, _ in
+            // ViewModel 完成 resetToWelcome → 现在处于欢迎页，重新显示 Rescan
+            withAnimation(.easeIn(duration: 0.25)) {
+                showRescanButton = true
             }
         }
         .onAppear {
