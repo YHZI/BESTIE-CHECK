@@ -39,6 +39,10 @@ struct ReactTextBarWithCircle: View {
     var onBackTapped: (() -> Void)?  // 返回按钮回调
     var shareEnabled: Bool = false   // Share 按钮是否可用
     var onShareTapped: (() -> Void)? // Share 按钮回调
+    var showStreakButton: Bool = false   // 是否在底部显示 streak 按钮
+    var streakCount: Int = 0
+    var streakFlameActive: Bool = false
+    var onStreakTapped: (() -> Void)? = nil
     
     var body: some View {
         HStack {
@@ -53,7 +57,11 @@ struct ReactTextBarWithCircle: View {
                 showBackButton: showBackButton,
                 onBackTapped: onBackTapped,
                 shareEnabled: shareEnabled,
-                onShareTapped: onShareTapped
+                onShareTapped: onShareTapped,
+                showStreakButton: showStreakButton,
+                streakCount: streakCount,
+                streakFlameActive: streakFlameActive,
+                onStreakTapped: onStreakTapped
             )
             .onChange(of: text) { oldValue, newValue in
                 print("📝 ReactTextBarWithCircle: text changed")
@@ -111,6 +119,10 @@ private struct BubbleContent: View {
     var onBackTapped: (() -> Void)?
     var shareEnabled: Bool = false   // Share 按钮是否可用
     var onShareTapped: (() -> Void)? // Share 按钮回调
+    var showStreakButton: Bool = false
+    var streakCount: Int = 0
+    var streakFlameActive: Bool = false
+    var onStreakTapped: (() -> Void)? = nil
     
     /// 气泡下方按钮区域高度
     private let actionAreaHeight: CGFloat = 90
@@ -226,30 +238,42 @@ private struct BubbleContent: View {
                             .padding(.horizontal, 16)
                         
                         ZStack {
-                            Button {
-                                onShareTapped?()
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Text("Share With Friends")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(.black.opacity(0.75))
-                                    
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(.black.opacity(0.75))
-                                        .padding(8)
-                                        .background(Color.white.opacity(0.85))
-                                        .clipShape(Circle())
+                            HStack(spacing: 14) {
+                                // ── Share button (left) ──
+                                Button {
+                                    onShareTapped?()
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Text("Share With Friends")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(.black.opacity(0.75))
+                                        
+                                        Image(systemName: "square.and.arrow.up")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.black.opacity(0.75))
+                                            .padding(8)
+                                            .background(Color.white.opacity(0.85))
+                                            .clipShape(Circle())
+                                    }
+                                    .padding(.vertical, 14)
+                                    .padding(.leading, 24)
+                                    .padding(.trailing, 12)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.white.opacity(shareEnabled ? 0.85 : 0.45))
+                                    )
                                 }
-                                .padding(.vertical, 14)
-                                .padding(.leading, 24)
-                                .padding(.trailing, 12)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.white.opacity(shareEnabled ? 0.85 : 0.45))
-                                )
+                                .disabled(!shareEnabled)
+                                
+                                // ── Streak button (right) ──
+                                if showStreakButton {
+                                    StreakInlineButton(
+                                        count: streakCount,
+                                        flameActive: streakFlameActive,
+                                        action: { onStreakTapped?() }
+                                    )
+                                }
                             }
-                            .disabled(!shareEnabled)
                         }
                         .frame(height: actionAreaHeight)
                         .frame(maxWidth: .infinity)
@@ -544,6 +568,49 @@ struct BubbleWithLCutout: Shape {
             // 14. 闭合路径
             path.closeSubpath()
         }
+    }
+}
+
+// MARK: - Streak inline button (white capsule, used inside expanded bubble)
+private struct StreakInlineButton: View {
+    let count: Int
+    let flameActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(flameGradient)
+
+                Text("\(count)")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.black.opacity(0.78))
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.85))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Streak \(count)")
+    }
+
+    private var flameGradient: LinearGradient {
+        if flameActive {
+            return LinearGradient(
+                colors: [Color.orange, Color(red: 1, green: 0.35, blue: 0.1)],
+                startPoint: .top, endPoint: .bottom
+            )
+        }
+        return LinearGradient(
+            colors: [Color.gray.opacity(0.55), Color.gray.opacity(0.4)],
+            startPoint: .top, endPoint: .bottom
+        )
     }
 }
 

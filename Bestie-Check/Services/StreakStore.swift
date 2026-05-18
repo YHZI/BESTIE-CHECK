@@ -30,6 +30,23 @@ enum StreakCheckInOutcome: Equatable {
     )
 }
 
+// MARK: - Month grid models
+
+struct StreakMonthDay: Identifiable, Equatable {
+    let id = UUID()
+    let date: Date
+    let dayNumber: Int
+    let inCurrentMonth: Bool
+    let isToday: Bool
+    let isFuture: Bool
+    let checkedIn: Bool
+}
+
+struct StreakMonthGrid: Equatable {
+    let title: String
+    let days: [StreakMonthDay]
+}
+
 // MARK: - Store
 
 @MainActor
@@ -130,6 +147,85 @@ final class StreakStore: ObservableObject {
             let key = Self.dayKey(for: day)
             return (day, keys.contains(key))
         }
+    }
+
+    /// Days remaining until the next freeze reward (current streak modulo 7).
+    var progressToNextFreeze: (current: Int, total: Int) {
+        (currentStreak % 7, 7)
+    }
+
+    /// Build a Monday-leading month grid for the calendar view.
+    /// Pads with previous/next month days so the grid is a full multiple of 7.
+    func monthGrid(containing date: Date = Date()) -> StreakMonthGrid {
+        var cal = Self.calendar
+        cal.firstWeekday = 2 // Monday
+        let today = cal.startOfDay(for: Date())
+        let comps = cal.dateComponents([.year, .month], from: date)
+        guard let monthStart = cal.date(from: comps),
+              let monthRange = cal.range(of: .day, in: .month, for: monthStart) else {
+            return StreakMonthGrid(title: "", days: [])
+        }
+
+        // Title like "May 2026"
+        let formatter = DateFormatter()
+        formatter.calendar = cal
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "LLLL yyyy"
+        let title = formatter.string(from: monthStart)
+
+        // Monday-based leading offset: weekday is 1..7 with firstWeekday=2,
+        // so we compute (weekday - firstWeekday + 7) % 7.
+        let firstWeekday = cal.component(.weekday, from: monthStart)
+        let leading = (firstWeekday - cal.firstWeekday + 7) % 7
+
+        let keys = Set(checkedInDayKeys)
+        var cells: [StreakMonthDay] = []
+
+        // Leading: previous-month padding
+        for i in stride(from: leading, to: 0, by: -1) {
+            if let d = cal.date(byAdding: .day, value: -i, to: monthStart) {
+                cells.append(makeDay(d, inMonth: false, today: today, keys: keys, cal: cal))
+            }
+        }
+        // Current month days
+        for day in monthRange {
+            if let d = cal.date(byAdding: .day, value: day - 1, to: monthStart) {
+                cells.append(makeDay(d, inMonth: true, today: today, keys: keys, cal: cal))
+            }
+        }
+        // Trailing: next-month padding to fill the last week
+        let remainder = cells.count % 7
+        if remainder != 0 {
+            let needed = 7 - remainder
+            if let last = cells.last?.date {
+                for i in 1...needed {
+                    if let d = cal.date(byAdding: .day, value: i, to: last) {
+                        cells.append(makeDay(d, inMonth: false, today: today, keys: keys, cal: cal))
+                    }
+                }
+            }
+        }
+
+        return StreakMonthGrid(title: title, days: cells)
+    }
+
+    private func makeDay(
+        _ date: Date,
+        inMonth: Bool,
+        today: Date,
+        keys: Set<String>,
+        cal: Calendar
+    ) -> StreakMonthDay {
+        let dayStart = cal.startOfDay(for: date)
+        let key = Self.dayKey(for: date)
+        return StreakMonthDay(
+            date: dayStart,
+            dayNumber: cal.component(.day, from: date),
+            inCurrentMonth: inMonth,
+            isToday: dayStart == today,
+            isFuture: dayStart > today,
+            checkedIn: keys.contains(key)
+        )
     }
 
     // MARK: - Persistence
