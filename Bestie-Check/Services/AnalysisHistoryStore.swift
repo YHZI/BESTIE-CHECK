@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import UIKit
 
 struct AnalysisHistoryRecord: Codable, Identifiable, Hashable {

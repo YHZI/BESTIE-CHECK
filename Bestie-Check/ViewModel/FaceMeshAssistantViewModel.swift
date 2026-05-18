@@ -54,6 +54,14 @@ class FaceMeshAssistantViewModel: ObservableObject {
     @Published private(set) var welcomeRevision: Int = 0
     private var hasAutoAnalyzedThisLaunch: Bool = false
     private var isManualReanalysisArmed: Bool = false
+    /// When true, `processFrame` short-circuits immediately: no MediaPipe inference,
+    /// no state-machine updates, no FaceDetectionProvider mutations. The frame task
+    /// keeps consuming the stream (so `.bufferingNewest(1)` prevents backlog) and
+    /// the ARSession keeps rendering the camera preview as the app background.
+    ///
+    /// Flipped to `true` after an analysis attempt completes (success OR failure),
+    /// and back to `false` by `requestReanalysis()` / `resetToWelcome()`.
+    private var isAnalysisIdle: Bool = false
     
     // MARK: - Private Properties
     private let arFrameProvider = ARFrameProvider()
@@ -154,6 +162,14 @@ class FaceMeshAssistantViewModel: ObservableObject {
     }
     
     private func processFrame(_ pixelBuffer: CVPixelBuffer, timestampMs: Int64) async {
+        // Idle short-circuit: after the current analysis cycle finished, we stop
+        // doing any face inference until the user explicitly asks for another
+        // round (Rescan or returning to welcome). We still drain the frame stream
+        // (cheap) to keep the camera preview smooth and prevent buffer pile-up.
+        if isAnalysisIdle {
+            return
+        }
+
         // 1. Face Landmarker 推理（后台队列）
         guard let result = try? await faceLandmarkerService.processFrame(pixelBuffer, timestampMs: timestampMs) else {
             // 推理失败或未检测到人脸 → 结束当前「有脸」会话，下次有脸会重新请求 AI
@@ -254,20 +270,11 @@ class FaceMeshAssistantViewModel: ObservableObject {
             }
             
             updateBubble(text: bubbleText, autoHide: true, isAIResponse: true)
-
-            AnalysisHistoryStore.shared.save(
-                aiResponse: aiResponse,
-                bubbleText: bubbleText,
-                formattedDetail: bubbleDetail,
-                image: lastSharedImage
-            )
-
-            // Daily streak: first successful face scan of the day auto check-in
-            StreakStore.shared.recordCheckInAfterFaceScan()
-
             hasCompletedFirstAnalysis = true
             isLoading = false
             canRequestReanalysis = true
+            // Stop further face inference until the user asks for another round.
+            enterIdleMode()
         } catch {
             // 请求失败：不自动重试（避免在同一次会话里反复触发），交给用户点 Reanalysis 再来一次。
             isLoading = false
@@ -275,6 +282,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
             hasCompletedFirstAnalysis = true
             errorMessage = "AI API Error: \(error.localizedDescription)"
             print("❌ AI API error: \(error)")
+            // Even on failure, stop the inference treadmill until the user retries.
+            enterIdleMode()
         }
     }
     
@@ -343,6 +352,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
             print("⛔️ requestReanalysis: aborted because isLoading=true")
             return
         }
+        // Leave idle FIRST so the very next frame can run MediaPipe inference.
+        exitIdleMode()
         isManualReanalysisArmed = true
         canRequestReanalysis = false
         // Reset per-face-session gating so the next stable face can trigger.
@@ -367,6 +378,27 @@ class FaceMeshAssistantViewModel: ObservableObject {
         guard hasCompletedFirstAnalysis, !isLoading else { return }
         canRequestReanalysis = true
         print("🔓 Reanalysis capability re-enabled")
+    }
+
+    // MARK: - Idle Mode
+    /// Stops further MediaPipe inference & state-machine work without touching
+    /// the ARSession or the frame consumer task. Camera preview stays live.
+    private func enterIdleMode() {
+        guard !isAnalysisIdle else { return }
+        isAnalysisIdle = true
+        // Freeze the public "face detected" signal so downstream SwiftUI does
+        // not flicker when the user moves the phone away after reading results.
+        // We do NOT call FaceDetectionProvider.updateFaceDetection here — its
+        // last known value (`true`, since we just finished an analysis) is the
+        // most useful state for the UI to show.
+        print("💤 Analysis pipeline entered idle mode (MediaPipe halted, camera preview kept)")
+    }
+
+    /// Re-enables MediaPipe inference. Called by Rescan / resetToWelcome paths.
+    private func exitIdleMode() {
+        guard isAnalysisIdle else { return }
+        isAnalysisIdle = false
+        print("⚡️ Analysis pipeline exited idle mode")
     }
     
     // MARK: - Post-Share Reset
@@ -395,6 +427,8 @@ class FaceMeshAssistantViewModel: ObservableObject {
             isLoading = false
             // Share 流程结束后允许用户手动 Rescan（避免 canRequestReanalysis 被卡在 false）
             canRequestReanalysis = true
+            // Exit idle so the welcome screen can perform its next (manual) analysis.
+            exitIdleMode()
             
             // 重置 FunFact 和 Logo 状态 - 不自动显示呼吸灯
             showFunFact = false
