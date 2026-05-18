@@ -41,6 +41,8 @@ struct ContentView: View {
     /// 直到下一次 `resetToWelcome` 才会再次出现。
     @State private var showRescanButton: Bool = false
 
+    @State private var isHistoryPresented: Bool = false
+
     var onAppReady: (() -> Void)? = nil
 
     
@@ -225,6 +227,11 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             // 左上角返回按钮（智能模式：自动处理 ReactTextBar 状态）
             VStack {
                 HStack {
+                    HistoryToolbarButton {
+                        isHistoryPresented = true
+                    }
+                    .padding(.leading, 12)
+
                     BackButton(
                         diameter: 22,
                         isTextBarExpanded: Binding(
@@ -383,6 +390,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
             withAnimation(.easeIn(duration: 0.25)) {
                 showRescanButton = true
             }
+        }
+        .sheet(isPresented: $isHistoryPresented) {
+            HistoryListView()
         }
         .onAppear {
             // ViewModel 初始化时已启动处理

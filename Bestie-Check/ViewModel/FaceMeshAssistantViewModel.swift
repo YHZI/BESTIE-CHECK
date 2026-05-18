@@ -254,6 +254,14 @@ class FaceMeshAssistantViewModel: ObservableObject {
             }
             
             updateBubble(text: bubbleText, autoHide: true, isAIResponse: true)
+
+            AnalysisHistoryStore.shared.save(
+                aiResponse: aiResponse,
+                bubbleText: bubbleText,
+                formattedDetail: bubbleDetail,
+                image: lastSharedImage
+            )
+
             hasCompletedFirstAnalysis = true
             isLoading = false
             canRequestReanalysis = true
