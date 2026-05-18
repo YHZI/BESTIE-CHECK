@@ -137,6 +137,11 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                                 viewModel.showFunFact = false
                                 viewModel.logoGlowing = true  // 显示呼吸灯
                             } else {
+                                // P1 修复：funFactText 为空时禁止打开（避免空气泡只显示标题）
+                                guard !viewModel.funFactText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                                    print("⏭️ Logo tap ignored: funFactText is empty (no AI funFact yet)")
+                                    return
+                                }
                                 // 如果 FunFact 未显示，打开它
                                 viewModel.logoGlowing = false  // 关闭呼吸灯
                                 viewModel.showFunFact = true
@@ -184,6 +189,11 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     let task = DispatchWorkItem { [self] in
                         guard !viewModel.showFunFact else { return }  // 如果已经显示，跳过
                         guard !funFactShownInCurrentSession else { return }  // 二次检查
+                        // P1 修复：funFactText 为空时不自动弹出（避免空气泡只显示标题）
+                        guard !viewModel.funFactText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            print("⏭️ Auto-trigger skipped: funFactText is empty")
+                            return
+                        }
                         print("⏰ Timer triggered - showing FunFact")
                         viewModel.showFunFact = true
                         viewModel.logoGlowing = false  // 关闭 logo 呼吸灯

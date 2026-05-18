@@ -273,6 +273,18 @@ class FaceMeshAssistantViewModel: ObservableObject {
             hasCompletedFirstAnalysis = true
             isLoading = false
             canRequestReanalysis = true
+
+            // Persist this analysis to local history (image + AI response).
+            AnalysisHistoryStore.shared.save(
+                aiResponse: aiResponse,
+                bubbleText: bubbleText,
+                formattedDetail: bubbleDetail,
+                image: lastSharedImage
+            )
+
+            // Daily streak: first successful face scan of the day auto check-in
+            StreakStore.shared.recordCheckInAfterFaceScan()
+
             // Stop further face inference until the user asks for another round.
             enterIdleMode()
         } catch {
