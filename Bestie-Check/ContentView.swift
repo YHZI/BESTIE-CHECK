@@ -41,6 +41,11 @@ struct ContentView: View {
     /// 直到下一次 `resetToWelcome` 才会再次出现。
     @State private var showRescanButton: Bool = false
 
+    @State private var isHistoryPresented: Bool = false
+
+    @ObservedObject private var streakStore = StreakStore.shared
+    @State private var isStreakSheetPresented: Bool = false
+
     var onAppReady: (() -> Void)? = nil
 
     
@@ -222,9 +227,25 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 }
             }
             
+            // Streak flame badge (top center)
+            VStack {
+                StreakFlameBadge(store: streakStore) {
+                    isStreakSheetPresented = true
+                }
+                .padding(.top, 24)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .zIndex(99)
+
             // 左上角返回按钮（智能模式：自动处理 ReactTextBar 状态）
             VStack {
                 HStack {
+                    HistoryToolbarButton {
+                        isHistoryPresented = true
+                    }
+                    .padding(.leading, 12)
+
                     BackButton(
                         diameter: 22,
                         isTextBarExpanded: Binding(
@@ -384,6 +405,23 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 showRescanButton = true
             }
         }
+        .sheet(isPresented: $isHistoryPresented) {
+            HistoryListView()
+        }
+        .sheet(isPresented: $isStreakSheetPresented) {
+            StreakDetailSheet(store: streakStore)
+        }
+        .overlay {
+            if let outcome = streakStore.latestCheckInOutcome,
+               case .checkedIn = outcome {
+                StreakCheckInCelebration(outcome: outcome) {
+                    streakStore.clearLatestCheckInOutcome()
+                }
+                .zIndex(2000)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: streakStore.latestCheckInOutcome != nil)
         .onAppear {
             // ViewModel 初始化时已启动处理
             onAppReady?()
