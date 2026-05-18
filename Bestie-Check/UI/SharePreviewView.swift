@@ -83,8 +83,8 @@ struct SharePreviewView: View {
     // MARK: - 顶部 Logo 区域
     private var topLogoSection: some View {
         HStack(spacing: 8) {
-            // 小章鱼 Logo (来自 Assets 中的 LogoIcon)
-            Image("LogoIcon")
+            // 小章鱼 Logo (来自 Assets 中的 AppIconImage)
+            Image("AppIconImage")
                 .renderingMode(.original)
                 .resizable()
                 .aspectRatio(contentMode: .fit)

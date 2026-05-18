@@ -173,9 +173,22 @@ struct FunFactBubble: View {
             // 恢复上次保存的位置（相对于屏幕中心的偏移）
             position = CGSize(width: savedX, height: savedY)
         } else {
-            // 默认位置：章鱼在屏幕右侧1/4处（这样整个构件会在屏幕中间）
-            // 屏幕中心是 (0, 0)，向右1/4是 +screenSize.width / 4
-            position = CGSize(width: screenSize.width / 4, height: screenSize.height / 2 - 90)
+            // 默认位置：保证整个 HStack（气泡 200 + 图标 44 = 244pt）
+            // 的右边沿距屏幕右边 trailingMargin pt，不会被裁掉。
+            //
+            // .position() 使用 HStack 的几何中心：
+            //   centerX_on_screen = geo.width/2 + position.width
+            // 想让右边沿落在 `screenWidth - trailingMargin`，
+            //   targetCenterX = screenWidth - trailingMargin - hstackWidth/2
+            //   ⇒ position.width = screenWidth/2 - trailingMargin - hstackWidth/2
+            let bubbleMaxWidth: CGFloat = 200
+            let hstackWidth: CGFloat = bubbleMaxWidth + iconSize   // 244
+            let trailingMargin: CGFloat = 24
+            let bottomMargin: CGFloat = 200    // 避免与底部 Rescan 按钮（bottom 130）重叠
+
+            let offsetX = screenSize.width / 2 - trailingMargin - hstackWidth / 2
+            let offsetY = screenSize.height / 2 - bottomMargin
+            position = CGSize(width: offsetX, height: offsetY)
         }
     }
 
@@ -197,20 +210,19 @@ struct FunFactBubble: View {
     private func collapse() {
         // 关闭前保存最终位置
         savePosition()
-        
-        // 立即调用 onDismiss，让外部立即更新状态（如 logoGlowing = true, showFunFact = false）
-        onDismiss?()
-        
-        // 然后播放关闭动画
+
+        // 1. 先播放关闭动画，让用户看到收起效果
         withAnimation(.spring(response: 0.44, dampingFraction: 0.82)) {
             bubbleScale   = 0.0
             bubbleOpacity = 0.0
         }
-        
-        // 动画完成后设置内部状态
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+
+        // 2. 动画完成后再通知外部 dismiss（外部会把 showFunFact 置 false，移除本视图）
+        //    并设置内部 isCollapsed 状态。延时与 spring response 对齐。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.44) {
             isCollapsed = true
             // 不显示内部呼吸灯，因为外部 LogoFrame 已经有了
+            onDismiss?()
         }
     }
 }
