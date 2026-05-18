@@ -116,6 +116,12 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                             shareFrozenReplyText = viewModel.bubbleTextForShare.isEmpty ? testText : viewModel.bubbleTextForShare
                             shareFrozenPreImage = viewModel.lastSharedImage
                             isShareCameraPresented = true
+                        },
+                        showStreakButton: true,
+                        streakCount: streakStore.currentStreak,
+                        streakFlameActive: streakStore.currentStreak > 0 || streakStore.checkedInToday,
+                        onStreakTapped: {
+                            isStreakSheetPresented = true
                         }
                     )
                     .onChange(of: isLongTextMode) { oldValue, newValue in
@@ -237,25 +243,12 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 }
             }
             
-            // Streak flame badge (top center)
-            VStack {
-                StreakFlameBadge(store: streakStore) {
-                    isStreakSheetPresented = true
-                }
-                .padding(.top, 24)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
-            .zIndex(99)
+            // Streak flame badge moved into expanded ReactTextBar (next to Share button).
+            // The top-center floating badge has been removed to avoid duplication.
 
             // 左上角返回按钮（智能模式：自动处理 ReactTextBar 状态）
             VStack {
                 HStack {
-                    HistoryToolbarButton {
-                        isHistoryPresented = true
-                    }
-                    .padding(.leading, 12)
-
                     BackButton(
                         diameter: 22,
                         isTextBarExpanded: Binding(
@@ -408,6 +401,17 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                 .accessibilityLabel("Rescan face analysis")
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            // History 入口按钮：整体放大 30%，固定在右下角。
+            // 使用 safeAreaInset 之外的内边距避免被屏幕曲面 / Home Indicator 截断。
+            HistoryToolbarButton {
+                isHistoryPresented = true
+            }
+            .scaleEffect(1.3)
+            .padding(.trailing, 12)
+            .padding(.bottom, 6)
+            .zIndex(50)
         }
         .onChange(of: viewModel.welcomeRevision) { _, _ in
             // ViewModel 完成 resetToWelcome → 现在处于欢迎页，重新显示 Rescan
