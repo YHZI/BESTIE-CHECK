@@ -13,9 +13,9 @@ import SwiftUI
 /// isGlowing — FunFact 收起后亮起呼吸灯，引导用户点击重新唤出
 /// onTap     — 点击 Logo 圆圈的回调
 struct LogoFrame: View {
-    var horizontalOffset: CGFloat = -6  // 水平偏移（正值向右，负值向左）
+    var horizontalOffset: CGFloat = 12  // 水平偏移（正值向右，负值向左）
     var verticalOffset: CGFloat = 0    // 垂直偏移（正值向下，负值向上）
-    var imageScale: CGFloat = 1.2      // 图像缩放比例
+    var imageScale: CGFloat = 0.18    // 图像缩放比例（< 1 以确保 SVG 不溢出圆形边框）
     var isGlowing: Bool = false        // 是否发光
     var onTap: (() -> Void)? = nil     // 点击回调
 
@@ -23,6 +23,8 @@ struct LogoFrame: View {
         GeometryReader { geometry in
             let position   = getPos(in: geometry.frame(in: .local))
             let logoRadius: CGFloat = 28
+            let diameter = logoRadius * 2
+            let iconSide = diameter * imageScale
 
             ZStack {
                 // ── Breathing glow (behind the circle) ──────────────────
@@ -31,19 +33,17 @@ struct LogoFrame: View {
                         .position(position)
                 }
 
-                // ── White circle + LogoIcon ──────────────────────────────
+                // ── Transparent circle + AppIcon SVG (centered, no white fill) ──
                 Circle()
-                    .fill(Color.white)
-                    .frame(width: logoRadius * 2, height: logoRadius * 2)
+                    .fill(Color.clear)
+                    .frame(width: diameter, height: diameter)
                     .overlay(
-                        Image("LogoIcon")
-                            .renderingMode(.original)  // 保留原始渲染模式
+                        Image("AppIconImage")
+                            .renderingMode(.original)
                             .resizable()
-                            .aspectRatio(contentMode: .fill)  // 使用fill模式填充整个区域
-                            .frame(width: logoRadius * 2, height: logoRadius * 2)
-                            .clipShape(Circle())  // 裁剪成圆形
-                            .scaleEffect(imageScale)  // 可调节的缩放
-                            .offset(x: horizontalOffset, y: verticalOffset)  // 可调节的偏移
+                            .aspectRatio(contentMode: .fit)          // 保持宽高比，整体内缩
+                            .frame(width: iconSide, height: iconSide) // 比圆框小一圈，绝不溢出
+                            .offset(x: horizontalOffset, y: verticalOffset)
                     )
                     .overlay(
                         Circle().stroke(

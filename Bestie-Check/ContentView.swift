@@ -126,9 +126,9 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     
                     // LogoFrame 圆形叠加在气泡上
                     LogoFrame(
-                        horizontalOffset: -6,
+                        horizontalOffset: 0,
                         verticalOffset: 0,
-                        imageScale: 1.2,
+                        imageScale: 0.72,
                         isGlowing: viewModel.logoGlowing,
                         onTap: {
                             // 点击 Logo 时的逻辑
