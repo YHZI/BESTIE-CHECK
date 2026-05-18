@@ -262,6 +262,9 @@ class FaceMeshAssistantViewModel: ObservableObject {
                 image: lastSharedImage
             )
 
+            // Daily streak: first successful face scan of the day auto check-in
+            StreakStore.shared.recordCheckInAfterFaceScan()
+
             hasCompletedFirstAnalysis = true
             isLoading = false
             canRequestReanalysis = true
