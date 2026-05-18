@@ -268,6 +268,35 @@ final class StreakStore: ObservableObject {
         }
     }
 
+    // MARK: - Debug helpers (DEBUG builds only)
+
+    #if DEBUG
+    /// Force a check-in for `today + daysFromNow`. Wraps the production logic
+    /// so the streak / freeze rules behave exactly the same.
+    @discardableResult
+    func debugCheckIn(daysFromNow: Int) -> StreakCheckInOutcome {
+        let target = Self.calendar.date(byAdding: .day, value: daysFromNow, to: Date()) ?? Date()
+        return recordCheckInAfterFaceScan(date: target)
+    }
+
+    /// Wipe all streak state (UserDefaults + in-memory). Useful for debugging.
+    func debugResetAll() {
+        currentStreak = 0
+        longestStreak = 0
+        freezeCount = 0
+        lastCheckInDayKey = nil
+        checkedInDayKeys = []
+        checkedInToday = false
+        latestCheckInOutcome = nil
+        persist()
+    }
+
+    /// Read-only snapshot for debug UI.
+    var debugSnapshot: (current: Int, longest: Int, freezes: Int, lastKey: String?) {
+        (currentStreak, longestStreak, freezeCount, lastCheckInDayKey)
+    }
+    #endif
+
     // MARK: - Date helpers
 
     private static func dayKey(for date: Date) -> String {
