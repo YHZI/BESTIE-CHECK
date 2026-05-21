@@ -11,6 +11,7 @@ import Combine
 struct DebugPanelView: View {
     @ObservedObject var viewModel: FaceMeshAssistantViewModel
     @ObservedObject var faceDetectionProvider = FaceDetectionProvider.shared
+    @ObservedObject private var streakStore = StreakStore.shared
     @Binding var isLongTextMode: Bool
     @Binding var showViewFinderScan: Bool
     @Binding var useRGBBackground: Bool
@@ -27,6 +28,10 @@ struct DebugPanelView: View {
     
     // FunFact 注入文本
     @State private var funFactTestText: String = ""
+
+    // Streak debug: simulated day offset from "today" used for the next check-in.
+    @State private var streakDayOffset: Int = 0
+    @State private var streakDebugMessage: String = ""
     
     private func updateExpansionCheck(_ text: String) {
         byteCount = text.utf8.count
@@ -35,26 +40,78 @@ struct DebugPanelView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // 折叠/展开按钮
-            Button(action: {
-                withAnimation {
-                    isExpanded.toggle()
+            if !isExpanded {
+                // 折叠态：仅显示触发按钮
+                Button(action: {
+                    isExpanded = true
+                }) {
+                    HStack {
+                        Image(systemName: "chevron.up")
+                        Text("Debug Panel")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(8)
+                    .background(Color.black.opacity(0.6))
+                    .cornerRadius(8)
                 }
-            }) {
-                HStack {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
-                    Text("Debug Panel")
+            } else {
+                expandedPanel
+            }
+        }
+    }
+
+    // MARK: - Expanded panel
+
+    private var expandedPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // 顶部标题栏 + Done 按钮
+            HStack {
+                Text("Debug Panel")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                Spacer()
+                Button(action: { isExpanded = false }) {
+                    Text("Done")
                         .font(.caption)
                         .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.85))
+                        .cornerRadius(6)
                 }
-                .foregroundColor(.white)
-                .padding(8)
-                .background(Color.black.opacity(0.6))
-                .cornerRadius(8)
+                .buttonStyle(.plain)
             }
-            
-            if isExpanded {
+            .padding(.bottom, 4)
+
+            ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    debugContent
+                }
+                .padding(.trailing, 2)
+            }
+            .frame(maxHeight: 520)
+        }
+        .padding(12)
+        .frame(width: 280, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.black.opacity(0.88))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                )
+        )
+        .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 4)
+    }
+
+    // MARK: - Debug content (was the original expanded block, no animation)
+
+    @ViewBuilder
+    private var debugContent: some View {
                     // FPS / 节流间隔
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Throttle Interval: \(viewModel.throttleIntervalMs)ms")
@@ -426,9 +483,152 @@ struct DebugPanelView: View {
                         .background(Color.black.opacity(0.4))
                         .cornerRadius(8)
                     }
+
+                    Divider()
+                        .background(Color.white.opacity(0.3))
+
+                    streakDebugSection
+    }
+
+    // MARK: - Streak debug section
+
+    @ViewBuilder
+    private var streakDebugSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "flame.fill")
+                    .foregroundColor(.orange)
+                Text("Streak Debug")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                Spacer()
+            }
+
+            // 当前状态摘要
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Current: \(streakStore.currentStreak)   Longest: \(streakStore.longestStreak)   ❄️ \(streakStore.freezeCount)")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.9))
+                Text("Today checked in: \(streakStore.checkedInToday ? "YES" : "NO")")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.7))
+                Text("Sim offset: +\(streakDayOffset) day(s)  →  target = today+\(streakDayOffset)")
+                    .font(.caption2)
+                    .foregroundColor(.cyan.opacity(0.9))
+            }
+            .padding(6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.06))
+            .cornerRadius(6)
+
+            // 第一行：签到 / 跳过一天
+            HStack(spacing: 6) {
+                Button(action: {
+                    #if DEBUG
+                    let outcome = streakStore.debugCheckIn(daysFromNow: streakDayOffset)
+                    switch outcome {
+                    case .alreadyCheckedInToday:
+                        streakDebugMessage = "Already checked in for that day."
+                    case .checkedIn(let streak, let earned, let used, let first):
+                        streakDebugMessage = "✓ Check-in. streak=\(streak)\(used ? " (freeze used)" : "")\(earned > 0 ? " +1 ❄️" : "")\(first ? " (first ever)" : "")"
+                    }
+                    #endif
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.seal.fill")
+                        Text("Check In Day +\(streakDayOffset)")
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(6)
+                    .background(Color.green.opacity(0.75))
+                    .cornerRadius(6)
+                }
+
+                Button(action: {
+                    streakDayOffset += 1
+                    streakDebugMessage = "Skipped 1 day. Next check-in will be at +\(streakDayOffset)."
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "forward.fill")
+                        Text("Skip 1 Day")
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(6)
+                    .background(Color.orange.opacity(0.75))
+                    .cornerRadius(6)
                 }
             }
+
+            // 第二行：offset 控制 / 重置
+            HStack(spacing: 6) {
+                Button(action: {
+                    streakDayOffset = max(0, streakDayOffset - 1)
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "minus.circle")
+                        Text("Offset -1")
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(6)
+                    .background(Color.gray.opacity(0.65))
+                    .cornerRadius(6)
+                }
+
+                Button(action: {
+                    streakDayOffset = 0
+                    streakDebugMessage = "Offset reset to 0."
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Reset Offset")
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(6)
+                    .background(Color.blue.opacity(0.65))
+                    .cornerRadius(6)
+                }
+            }
+
+            // 危险操作：清空所有 streak 数据
+            Button(action: {
+                #if DEBUG
+                streakStore.debugResetAll()
+                streakDayOffset = 0
+                streakDebugMessage = "All streak data wiped."
+                #endif
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "trash.fill")
+                    Text("Wipe All Streak Data")
+                }
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(6)
+                .background(Color.red.opacity(0.7))
+                .cornerRadius(6)
+            }
+
+            if !streakDebugMessage.isEmpty {
+                Text(streakDebugMessage)
+                    .font(.caption2)
+                    .foregroundColor(.yellow)
+                    .padding(.top, 2)
+            }
         }
+        .padding(8)
+        .background(Color.black.opacity(0.4))
+        .cornerRadius(8)
     }
 }
 
