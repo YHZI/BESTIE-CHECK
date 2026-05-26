@@ -245,30 +245,78 @@ private struct RightTail: Shape {
 struct FunFactBreathingGlow: View {
     let radius: CGFloat
     @State private var pulse = false
+
+    // 品牌三色（与 LogoFrame 的 stroke 一致）
+    private let glowColors: [Color] = [
+        Color(red: 0x69/255.0, green: 0xAC/255.0, blue: 0x14/255.0),
+        Color(red: 0x49/255.0, green: 0x3D/255.0, blue: 0x89/255.0),
+        Color(red: 0xF8/255.0, green: 0x4C/255.0, blue: 0x4C/255.0),
+    ]
+
     var body: some View {
+        let baseDiameter = radius * 2
+
         ZStack {
-            ForEach(0..<3, id: \.self) { i in
-                let size = (radius * 2) + CGFloat(i + 1) * 10
-                Circle()
-                    .frame(width: size, height: size)
-                    .overlay(
-                        Circle().stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0x69/255.0, green: 0xAC/255.0, blue: 0x14/255.0),
-                                    Color(red: 0x49/255.0, green: 0x3D/255.0, blue: 0x89/255.0),
-                                    Color(red: 0xF8/255.0, green: 0x4C/255.0, blue: 0x4C/255.0),
-                                ],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            ), lineWidth: 2.5
-                        )
+            // ── 1) 柔和外发光：大尺寸径向渐变 + 模糊，营造"被点亮"的氛围 ─
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color.white.opacity(0.55),
+                            Color(red: 0xFF/255.0, green: 0xC8/255.0, blue: 0x8A/255.0).opacity(0.35),
+                            Color.white.opacity(0.0),
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: baseDiameter * 0.95
                     )
-                    .opacity(pulse ? 0.0 : Double(3 - i) * 0.25)
-                    .scaleEffect(pulse ? 1.4 : 1.0)
-                    .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)
-                        .delay(Double(i) * 0.30), value: pulse)
+                )
+                .frame(width: baseDiameter * 2.2, height: baseDiameter * 2.2)
+                .blur(radius: 14)
+                .opacity(pulse ? 0.95 : 0.55)
+                .scaleEffect(pulse ? 1.06 : 0.94)
+                .animation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: pulse)
+
+            // ── 2) 品牌色角向光晕：缓慢旋转 + 模糊，色彩流动感 ─────────
+            Circle()
+                .fill(
+                    AngularGradient(
+                        colors: glowColors + [glowColors[0]],
+                        center: .center
+                    )
+                )
+                .frame(width: baseDiameter * 1.55, height: baseDiameter * 1.55)
+                .blur(radius: 18)
+                .opacity(pulse ? 0.55 : 0.30)
+                .scaleEffect(pulse ? 1.10 : 0.96)
+                .rotationEffect(.degrees(pulse ? 360 : 0))
+                .animation(.linear(duration: 8).repeatForever(autoreverses: false), value: pulse)
+
+            // ── 3) 两道向外扩散的细描边脉冲（不再有黑色实心填充） ─────
+            ForEach(0..<2, id: \.self) { i in
+                let size = baseDiameter + CGFloat(i + 1) * 12
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: glowColors,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+                    .frame(width: size, height: size)
+                    .opacity(pulse ? 0.0 : 0.45 - Double(i) * 0.18)
+                    .scaleEffect(pulse ? 1.45 : 1.0)
+                    .animation(
+                        .easeOut(duration: 1.8)
+                            .repeatForever(autoreverses: false)
+                            .delay(Double(i) * 0.45),
+                        value: pulse
+                    )
             }
         }
+        .compositingGroup()
+        .allowsHitTesting(false)
         .onAppear { pulse = true }
     }
 }
