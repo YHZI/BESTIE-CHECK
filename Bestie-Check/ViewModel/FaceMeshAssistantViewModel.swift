@@ -445,7 +445,9 @@ class FaceMeshAssistantViewModel: ObservableObject {
             // 重置 FunFact 和 Logo 状态 - 不自动显示呼吸灯
             showFunFact = false
             logoGlowing = false  // 保持关闭，用户需要手动触发
-            // 注意：不解锁 funFactLocked，保持 funFactText 内容直到下次扫描
+            // 清空 FunFact 缓存，避免回到欢迎页后点击 logo 仍能唤起上一次的 FunFact
+            funFactText = ""
+            funFactLocked = false
 
             // Bump revision LAST so observers see a fully reset state.
             welcomeRevision &+= 1

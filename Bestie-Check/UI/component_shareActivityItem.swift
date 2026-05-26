@@ -386,7 +386,13 @@ struct ShareFlowModifier: ViewModifier {
                     },
                     onDismiss: {
                         composeTask?.cancel()
-                        isPresented = false
+                        // 与分享完成路径保持一致：重置到欢迎页并收起 bubble，
+                        // 否则用户会回到带旧分析内容的界面，无法触发下一次扫描。
+                        viewModel.resetToWelcome()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            isPresented = false
+                            isBubbleExpanded = false
+                        }
                     }
                 )
                 .onAppear {

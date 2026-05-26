@@ -309,7 +309,7 @@ Additional paragraph here to make absolutely sure we exceed the minimum height t
                     showFunFact: $viewModel.showFunFact
                 )
             }
-            .zIndex(1000)  // 始终在最前端
+            .zIndex(-1)  // 始终在最前端
             
             // Loading 指示器
             if viewModel.isLoading {

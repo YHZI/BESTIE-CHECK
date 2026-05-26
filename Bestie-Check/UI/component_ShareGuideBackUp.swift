@@ -47,9 +47,9 @@ struct ShareGuideBackUpOverlay: View {
 
                     // LogoFrame in the cutout area
                     LogoFrame(
-                        horizontalOffset: -6,
+                        horizontalOffset: 0,
                         verticalOffset: 0,
-                        imageScale: 1.2,
+                        imageScale: 0.72,
                         isGlowing: false,
                         onTap: nil
                     )
