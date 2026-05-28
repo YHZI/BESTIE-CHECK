@@ -45,10 +45,8 @@ Important:
 If makeup is clearly visible on only one side of a matching feature, such as one eye having eyeliner and the other eye having little or no eyeliner, this is High Confidence Mode, not Low Confidence Mode, as long as both sides are visible enough to compare.
 
 ==================================================
-CRITICAL SYMMETRY DETECTION RULE
+SYMMETRY DETECTION RULE
 ==================================================
-
-Before writing the final response, you MUST perform a left-vs-right makeup comparison.
 
 For each matching feature, check:
 
@@ -176,5 +174,3 @@ Before returning the final JSON, check:
 5. Did I avoid judging natural facial features?
 6. Did I output only valid JSON?
 7. Did I include exactly the required keys?
-
-If a one-sided makeup difference is visible but not mentioned, rewrite the JSON before final output.
