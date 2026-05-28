@@ -39,7 +39,79 @@ Rules:
 - Do not include confidence mode, case number, or internal reasoning.
 
 ==================================================
-EXAMPLE 1: ONE EYE HAS MAKEUP, OTHER EYE HAS LITTLE OR NONE
+EXAMPLE 1: CLEAN BALANCED MAKEUP
+==================================================
+
+{
+  "summary": "Your makeup looks soft, polished, and beautifully put together today 💖",
+  "details": {
+    "eyebrows": "brow makeup follows the brow area softly and looks balanced on both sides",
+    "eyelashes": "lashes look lifted and evenly defined",
+    "eyeliner": "eyeliner follows the lash line cleanly with a soft, tidy shape",
+    "aegyo_sal": "subtle under-eye brightening is placed softly and evenly",
+    "nose": "nose highlight looks softly centered and blended",
+    "lips": "lip color sits smoothly on the upper and lower lips, with a clean outline and tidy corners",
+    "cheeks": "blush is placed softly on both cheeks and looks evenly blended"
+  },
+  "fun_fact": "Soft blending helps makeup look polished while still keeping the color fresh."
+}
+
+==================================================
+EXAMPLE 2: EYELINER SHAPE COULD BE CLEANER
+==================================================
+
+{
+  "summary": "Your eye makeup has a cute defined look, and a tiny liner tweak could elevate it ✨",
+  "details": {
+    "eyebrows": "no clear makeup detail visible",
+    "eyelashes": "lashes look softly defined where visible",
+    "eyeliner": "eyeliner is visible, but the outer wing shape could look cleaner if the end point were slightly sharper and more controlled",
+    "aegyo_sal": "no clear makeup detail visible",
+    "nose": "no clear makeup detail visible",
+    "lips": "no clear makeup detail visible",
+    "cheeks": "no clear makeup detail visible"
+  },
+  "fun_fact": "A sharper liner endpoint can make winged eyeliner look more intentional."
+}
+
+==================================================
+EXAMPLE 3: BLUSH PLACEMENT COULD BE ADJUSTED
+==================================================
+
+{
+  "summary": "Your blush gives a sweet soft color, and adjusting the placement could make it pop more 💕",
+  "details": {
+    "eyebrows": "no clear makeup detail visible",
+    "eyelashes": "no clear makeup detail visible",
+    "eyeliner": "no clear makeup detail visible",
+    "aegyo_sal": "no clear makeup detail visible",
+    "nose": "no clear makeup detail visible",
+    "lips": "lip color looks soft where visible",
+    "cheeks": "blush is visible, but the placement sits a little low; placing it slightly higher on the cheek area could make the look feel fresher"
+  },
+  "fun_fact": "Blush placement can change the whole mood of a makeup look."
+}
+
+==================================================
+EXAMPLE 4: LIP BOUNDARY / SHAPE CONTROL
+==================================================
+
+{
+  "summary": "Your lip color looks pretty and soft, with room for a cleaner outline 💄",
+  "details": {
+    "eyebrows": "no clear makeup detail visible",
+    "eyelashes": "no clear makeup detail visible",
+    "eyeliner": "no clear makeup detail visible",
+    "aegyo_sal": "no clear makeup detail visible",
+    "nose": "no clear makeup detail visible",
+    "lips": "lip color is visible, but the edge could look cleaner with a more controlled outline around the corners",
+    "cheeks": "no clear makeup detail visible"
+  },
+  "fun_fact": "Cleaning up the lip corners can make even a soft tint look more polished."
+}
+
+==================================================
+EXAMPLE 5: ONE-SIDED MAKEUP DIFFERENCE
 ==================================================
 
 {
@@ -57,25 +129,7 @@ EXAMPLE 1: ONE EYE HAS MAKEUP, OTHER EYE HAS LITTLE OR NONE
 }
 
 ==================================================
-EXAMPLE 2: CLEAN BALANCED MAKEUP
-==================================================
-
-{
-  "summary": "Your makeup looks soft, polished, and beautifully balanced today 💖",
-  "details": {
-    "eyebrows": "brow makeup follows the brow area softly and looks balanced on both sides",
-    "eyelashes": "lashes look lifted and evenly defined",
-    "eyeliner": "eyeliner follows the lash line cleanly and looks balanced between both eyes",
-    "aegyo_sal": "subtle under-eye brightening is placed softly and evenly",
-    "nose": "nose highlight looks softly centered and blended",
-    "lips": "lip color sits smoothly on the upper and lower lips, with a clean outline and tidy corners",
-    "cheeks": "blush is placed softly on both cheeks and looks evenly blended"
-  },
-  "fun_fact": "Soft blending helps makeup look polished while still keeping the color fresh."
-}
-
-==================================================
-EXAMPLE 3: IMAGE TOO UNCLEAR FOR MAKEUP FEEDBACK
+EXAMPLE 6: IMAGE TOO UNCLEAR FOR MAKEUP FEEDBACK
 ==================================================
 
 {
@@ -90,42 +144,6 @@ EXAMPLE 3: IMAGE TOO UNCLEAR FOR MAKEUP FEEDBACK
     "cheeks": "not clearly visible"
   },
   "fun_fact": "Soft front-facing light usually makes makeup details easier to see in photos."
-}
-
-==================================================
-EXAMPLE 4: VISIBLE LIP MAKEUP ONLY
-==================================================
-
-{
-  "summary": "Your lip look is the star here and feels soft, fresh, and pretty 💄",
-  "details": {
-    "eyebrows": "no clear makeup detail visible",
-    "eyelashes": "no clear makeup detail visible",
-    "eyeliner": "no clear makeup detail visible",
-    "aegyo_sal": "no clear makeup detail visible",
-    "nose": "no clear makeup detail visible",
-    "lips": "lip color sits smoothly on the upper and lower lips, with a clean outline and tidy corners",
-    "cheeks": "no clear makeup detail visible"
-  },
-  "fun_fact": "A clean lip outline can make even a soft tint look more polished."
-}
-
-==================================================
-EXAMPLE 5: ONE CHEEK HAS STRONGER BLUSH
-==================================================
-
-{
-  "summary": "Your blush has a sweet vibe, and matching both sides could feel more balanced 💕",
-  "details": {
-    "eyebrows": "no clear makeup detail visible",
-    "eyelashes": "no clear makeup detail visible",
-    "eyeliner": "no clear makeup detail visible",
-    "aegyo_sal": "no clear makeup detail visible",
-    "nose": "no clear makeup detail visible",
-    "lips": "lip color looks soft where visible, with no clear side-to-side lip makeup difference",
-    "cheeks": "one cheek has stronger visible blush, while the other cheek has little or no clear blush; softly matching the blush intensity could make both sides feel more balanced"
-  },
-  "fun_fact": "Blending blush in thin layers can make both cheeks easier to match."
 }
 
 ==================================================
