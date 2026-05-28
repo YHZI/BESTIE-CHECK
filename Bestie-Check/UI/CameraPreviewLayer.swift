@@ -72,15 +72,28 @@ final class SharedCameraSession: ObservableObject {
 
     /// 暂停（释放摄像头给 ARSession 或相机拍照 picker）
     func pause() {
-        guard session.isRunning else { return }
-        Task.detached(priority: .userInitiated) { [session] in
+        Task {
+            await pauseAndWait()
+        }
+    }
+
+    /// Stop the shared camera and wait until `stopRunning()` has completed.
+    /// Share dismissal uses this to avoid racing ARSession resume against
+    /// AVCaptureSession releasing the front camera.
+    func pauseAndWait() async {
+        guard session.isRunning else {
+            isPrepared = false
+            isReady = false
+            return
+        }
+
+        await Task.detached(priority: .userInitiated) { [session] in
             session.stopRunning()
             print("⏸️ SharedCameraSession paused")
-            await MainActor.run {
-                self.isPrepared = false
-                self.isReady = false
-            }
-        }
+        }.value
+
+        isPrepared = false
+        isReady = false
     }
 
     /// 恢复（从分享界面返回时调用）
