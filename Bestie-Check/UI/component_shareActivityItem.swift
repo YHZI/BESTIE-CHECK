@@ -304,6 +304,28 @@ struct ShareFlowModifier: ViewModifier {
 
     @State private var composedImage: UIImage? = nil
     @State private var composeTask: Task<Void, Never>? = nil
+    @State private var isClosingShareFlow: Bool = false
+
+    private func closeShareFlow(resetToWelcome: Bool) {
+        guard !isClosingShareFlow else { return }
+        isClosingShareFlow = true
+        composeTask?.cancel()
+
+        Task { @MainActor in
+            if resetToWelcome {
+                viewModel.resetToWelcome()
+            }
+
+            await SharedCameraSession.shared.pauseAndWait()
+
+            // Let the capture stack finish releasing before the outer view's
+            // `isPresented=false` observer resumes ARSession.
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            isPresented = false
+            isBubbleExpanded = false
+            isClosingShareFlow = false
+        }
+    }
 
     /// 在主线程捕获 screen 参数，然后在后台线程纯渲染，持有 Task 可随时 cancel
     private func recompose(with photo: UIImage?) {
@@ -355,19 +377,9 @@ struct ShareFlowModifier: ViewModifier {
                         if let item = ShareImageActivityItemSource(image: img) {
                             let vc = UIActivityViewController(activityItems: [item], applicationActivities: nil)
                             vc.completionWithItemsHandler = { _, completed, _, _ in
-                                // 立即在主线程执行，避免延迟阻塞摄像头
-                                DispatchQueue.main.async {
-                                    // 清理资源
+                                Task { @MainActor in
                                     item.cleanup()
-                                    
-                                    // 立即重置状态
-                                    viewModel.resetToWelcome()
-                                    
-                                    // 只需短暂延迟关闭 UI，让动画流畅
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        isPresented = false
-                                        isBubbleExpanded = false
-                                    }
+                                    closeShareFlow(resetToWelcome: true)
                                 }
                             }
                             if let popover = vc.popoverPresentationController {
@@ -385,14 +397,9 @@ struct ShareFlowModifier: ViewModifier {
                         recompose(with: photo)
                     },
                     onDismiss: {
-                        composeTask?.cancel()
                         // 与分享完成路径保持一致：重置到欢迎页并收起 bubble，
                         // 否则用户会回到带旧分析内容的界面，无法触发下一次扫描。
-                        viewModel.resetToWelcome()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            isPresented = false
-                            isBubbleExpanded = false
-                        }
+                        closeShareFlow(resetToWelcome: true)
                     }
                 )
                 .onAppear {
